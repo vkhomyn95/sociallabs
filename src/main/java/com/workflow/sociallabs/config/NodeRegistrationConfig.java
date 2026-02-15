@@ -7,6 +7,7 @@ import com.workflow.sociallabs.model.NodeDiscriminator;
 import com.workflow.sociallabs.node.core.NodeRegistry;
 import com.workflow.sociallabs.node.nodes.telegram.bot.TelegramBotActionNodeExecutor;
 import com.workflow.sociallabs.node.nodes.telegram.client.TelegramClientActionNodeExecutor;
+import com.workflow.sociallabs.node.nodes.telegram.client.TelegramClientTriggerNodeExecutor;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Configuration;
@@ -39,6 +40,15 @@ public class NodeRegistrationConfig {
                 NodeType.ACTION,
                 NodeCategory.COMMUNICATION,
                 TelegramClientActionNodeExecutor.class,
+                CredentialType.TELEGRAM_CLIENT
+        );
+
+        // Telegram Client Trigger
+        registry.register(
+                NodeDiscriminator.TELEGRAM_CLIENT_TRIGGER,
+                NodeType.TRIGGER,
+                NodeCategory.COMMUNICATION,
+                TelegramClientTriggerNodeExecutor.class,
                 CredentialType.TELEGRAM_CLIENT
         );
 

@@ -3,7 +3,7 @@ package com.workflow.sociallabs.node.nodes.telegram.bot;
 import com.workflow.sociallabs.model.NodeDiscriminator;
 import com.workflow.sociallabs.node.base.AbstractActionNode;
 import com.workflow.sociallabs.node.core.ExecutionContext;
-import com.workflow.sociallabs.node.nodes.telegram.bot.handler.*;
+import com.workflow.sociallabs.node.nodes.telegram.bot.handlers.*;
 import com.workflow.sociallabs.node.nodes.telegram.bot.parameters.TelegramBotActionParameters;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;

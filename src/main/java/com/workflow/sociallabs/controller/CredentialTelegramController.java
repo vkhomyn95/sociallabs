@@ -1,6 +1,8 @@
 package com.workflow.sociallabs.controller;
 
-import com.workflow.sociallabs.node.nodes.telegram.client.TelegramClientAuthService;
+import com.workflow.sociallabs.node.nodes.telegram.client.TelegramClientService;
+import com.workflow.sociallabs.node.nodes.telegram.client.models.TelegramClientAuthMethod;
+import com.workflow.sociallabs.node.nodes.telegram.client.models.TelegramClientCredentialKeys;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -12,23 +14,28 @@ import java.util.Map;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/v1/telegram/auth")
+@RequestMapping("/api/v1/telegram-client-credentials")
 @RequiredArgsConstructor
 public class CredentialTelegramController {
 
-    private final TelegramClientAuthService authService;
+    private final TelegramClientService telegramClientService;
 
-    /**
+    /**8
      * Початок процесу аутентифікації
      */
     @PostMapping("/start")
-    public Map<String, Object> startAuth(@RequestBody Map<String, String> request) {
-        String apiId = request.get("apiId");
-        String apiHash = request.get("apiHash");
-        String phoneNumber = request.get("phoneNumber");
-        String authMethod = request.getOrDefault("authMethod", "qrcode"); // qrcode or phone
+    public Map<String, Object> startAuthSession(@RequestBody Map<String, Object> request) {
+        String apiId = (String) request.get(TelegramClientCredentialKeys.API_ID);
+        String apiHash = (String) request.get(TelegramClientCredentialKeys.API_HASH);
+        String phoneNumber = (String) request.get(TelegramClientCredentialKeys.PHONE_NUMBER);
+        String authMethod = (String) request.getOrDefault(TelegramClientCredentialKeys.AUTH_METHOD, "qrcode"); // qrcode or phone
 
-        String sessionId = authService.startAuthSession(apiId, apiHash, phoneNumber, authMethod);
+        String sessionId = telegramClientService.startAuthSession(
+                apiId,
+                apiHash,
+                phoneNumber,
+                TelegramClientAuthMethod.valueOf(authMethod)
+        );
 
         return Map.of(
                 "success", true,
@@ -41,11 +48,11 @@ public class CredentialTelegramController {
      * SSE endpoint для отримання updates в реальному часі
      */
     @GetMapping(value = "/updates/{sessionId}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<Map<String, Object>> getAuthUpdates(@PathVariable String sessionId) {
-        return authService.getAuthUpdatesStream(sessionId)
+    public Flux<Map<String, Object>> getAuthUpdatesStream(@PathVariable String sessionId) {
+        return telegramClientService.getAuthUpdatesStream(sessionId)
                 .timeout(Duration.ofMinutes(5))
                 .onErrorResume(e -> {
-                    log.error("Error in auth stream", e);
+                    log.error("[{}] Error in auth telegram client stream", sessionId, e);
                     return Flux.just(Map.of(
                             "type", "error",
                             "message", e.getMessage()
@@ -57,11 +64,11 @@ public class CredentialTelegramController {
      * Відправка коду підтвердження
      */
     @PostMapping("/submit-code")
-    public Map<String, Object> submitCode(@RequestBody Map<String, String> request) {
+    public Map<String, Object> submitAuthCode(@RequestBody Map<String, String> request) {
         String sessionId = request.get("sessionId");
         String code = request.get("code");
 
-        authService.submitCode(sessionId, code);
+        telegramClientService.submitAuthCode(sessionId, code);
 
         return Map.of(
                 "success", true,
@@ -73,11 +80,11 @@ public class CredentialTelegramController {
      * Відправка пароля 2FA
      */
     @PostMapping("/submit-password")
-    public Map<String, Object> submitPassword(@RequestBody Map<String, String> request) {
+    public Map<String, Object> submitAuthPassword(@RequestBody Map<String, String> request) {
         String sessionId = request.get("sessionId");
         String password = request.get("password");
 
-        authService.submitPassword(sessionId, password);
+        telegramClientService.submitAuthPassword(sessionId, password);
 
         return Map.of(
                 "success", true,
@@ -89,8 +96,8 @@ public class CredentialTelegramController {
      * Скасування аутентифікації
      */
     @DeleteMapping("/cancel/{sessionId}")
-    public Map<String, Object> cancelAuth(@PathVariable String sessionId) {
-        authService.cancelAuthSession(sessionId);
+    public Map<String, Object> cancelAuthSession(@PathVariable String sessionId) {
+        telegramClientService.cancelAuthSession(sessionId);
 
         return Map.of(
                 "success", true,
@@ -102,7 +109,7 @@ public class CredentialTelegramController {
      * Отримання статусу сесії
      */
     @GetMapping("/status/{sessionId}")
-    public Map<String, Object> getStatus(@PathVariable String sessionId) {
-        return authService.getSessionStatus(sessionId);
+    public Map<String, Object> getSessionStatus(@PathVariable String sessionId) {
+        return telegramClientService.getSessionStatus(sessionId);
     }
 }

@@ -6,7 +6,7 @@ import com.workflow.sociallabs.node.nodes.telegram.bot.enums.TelegramAttachmentT
 import com.workflow.sociallabs.node.nodes.telegram.bot.enums.TelegramOperation;
 import com.workflow.sociallabs.node.nodes.telegram.bot.enums.TelegramParseMode;
 import com.workflow.sociallabs.node.nodes.telegram.bot.enums.TelegramResource;
-import com.workflow.sociallabs.node.parameters.TypedNodeParameters;
+import com.workflow.sociallabs.node.parameters.ActionNodeParameters;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -24,7 +24,7 @@ import java.util.Map;
 @AllArgsConstructor
 @Builder
 @JsonTypeName(NodeDiscriminator.Values.TELEGRAM_BOT_ACTION)
-public class TelegramBotActionParameters implements TypedNodeParameters {
+public class TelegramBotActionParameters implements ActionNodeParameters {
 
     // ========== Основні параметри ==========
 

@@ -104,43 +104,43 @@ public class WorkflowMapper {
     /**
      * NodeParameter -> NodeParameterDto
      */
-    private NodeDefinitionResponse.NodeParameterDto toParameterDto(NodeParameter<?> param) {
-        NodeDefinitionResponse.NodeParameterDto dto = NodeDefinitionResponse.NodeParameterDto.builder()
-                .name(param.getName())
-                .displayName(param.getDisplayName())
-                .description(param.getDescription())
-                .type(param.getType())
-                .defaultValue(param.getDefaultValue())
-                .required(param.isRequired())
-                .hidden(param.isHidden())
-                .build();
-
-        // Додаткові поля залежно від типу
-        if (param instanceof StringParameter) {
-            StringParameter sp = (StringParameter) param;
-            dto.setMinLength(sp.getMinLength());
-            dto.setMaxLength(sp.getMaxLength());
-            dto.setPattern(sp.getPattern());
-            dto.setMultiline(sp.isMultiline());
-            dto.setPlaceholder(sp.getPlaceholder());
-        } else if (param instanceof NumberParameter) {
-            NumberParameter np = (NumberParameter) param;
-            dto.setMin(np.getMin());
-            dto.setMax(np.getMax());
-            dto.setStep(np.getStep());
-        } else if (param instanceof OptionsParameter) {
-            OptionsParameter op = (OptionsParameter) param;
-            dto.setOptions(op.getOptions().stream()
-                    .map(opt -> NodeDefinitionResponse.OptionDto.builder()
-                            .value(opt.getValue())
-                            .name(opt.getName())
-                            .description(opt.getDescription())
-                            .build())
-                    .collect(Collectors.toList()));
-        }
-
-        return dto;
-    }
+//    private NodeDefinitionResponse.NodeParameterDto toParameterDto(NodeParameter<?> param) {
+//        NodeDefinitionResponse.NodeParameterDto dto = NodeDefinitionResponse.NodeParameterDto.builder()
+//                .name(param.getName())
+//                .displayName(param.getDisplayName())
+//                .description(param.getDescription())
+//                .type(param.getType())
+//                .defaultValue(param.getDefaultValue())
+//                .required(param.isRequired())
+//                .hidden(param.isHidden())
+//                .build();
+//
+//        // Додаткові поля залежно від типу
+//        if (param instanceof StringParameter) {
+//            StringParameter sp = (StringParameter) param;
+//            dto.setMinLength(sp.getMinLength());
+//            dto.setMaxLength(sp.getMaxLength());
+//            dto.setPattern(sp.getPattern());
+//            dto.setMultiline(sp.isMultiline());
+//            dto.setPlaceholder(sp.getPlaceholder());
+//        } else if (param instanceof NumberParameter) {
+//            NumberParameter np = (NumberParameter) param;
+//            dto.setMin(np.getMin());
+//            dto.setMax(np.getMax());
+//            dto.setStep(np.getStep());
+//        } else if (param instanceof OptionsParameter) {
+//            OptionsParameter op = (OptionsParameter) param;
+//            dto.setOptions(op.getOptions().stream()
+//                    .map(opt -> NodeDefinitionResponse.OptionDto.builder()
+//                            .value(opt.getValue())
+//                            .name(opt.getName())
+//                            .description(opt.getDescription())
+//                            .build())
+//                    .collect(Collectors.toList()));
+//        }
+//
+//        return dto;
+//    }
 
     /**
      * OutputDefinition -> NodeOutputDto

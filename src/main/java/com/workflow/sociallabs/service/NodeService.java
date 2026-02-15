@@ -18,6 +18,8 @@ import com.workflow.sociallabs.node.parameters.TypedNodeParameters;
 import com.workflow.sociallabs.security.CredentialEncryption;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.config.AutowireCapableBeanFactory;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
@@ -37,6 +39,9 @@ public class NodeService {
     private final CredentialEncryption encryption;
     private final CredentialRepository credentialRepository;
     private final ObjectMapper objectMapper;
+
+    @Autowired
+    private AutowireCapableBeanFactory beanFactory;
 
     /**
      * Отримати доступні node з фільтрацією та пагінацією
@@ -204,7 +209,14 @@ public class NodeService {
                         "No executor found for node: " + discriminator
                 ));
 
-        return executorClass.getDeclaredConstructor().newInstance();
+        NodeExecutor executor = executorClass
+                .getDeclaredConstructor()
+                .newInstance();
+
+        // 🔥 ОЦЕ КЛЮЧОВЕ
+        beanFactory.autowireBean(executor);
+
+        return executor;
     }
 
     /**

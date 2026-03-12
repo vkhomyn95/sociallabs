@@ -1,7 +1,6 @@
 package com.workflow.sociallabs.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.workflow.sociallabs.domain.converter.NodeParametersConverter;
 import com.workflow.sociallabs.domain.entity.*;
 import com.workflow.sociallabs.domain.model.NodeParameters;
 import com.workflow.sociallabs.domain.repository.ConnectionRepository;
@@ -274,8 +273,8 @@ public class WorkflowService {
         validateNodeParameters(parameters, discriminator);
 
         // Згенерувати UUID якщо не передано
-        String nodeId = request.getId() != null && !request.getId().trim().isEmpty()
-                ? request.getId()
+        String nodeId = request.getNodeId() != null && !request.getNodeId().trim().isEmpty()
+                ? request.getNodeId()
                 : UUID.randomUUID().toString();
 
         // Визначити ім'я ноди

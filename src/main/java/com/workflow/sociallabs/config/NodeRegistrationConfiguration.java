@@ -5,6 +5,8 @@ import com.workflow.sociallabs.domain.enums.NodeCategory;
 import com.workflow.sociallabs.domain.enums.NodeType;
 import com.workflow.sociallabs.model.NodeDiscriminator;
 import com.workflow.sociallabs.node.core.NodeRegistry;
+import com.workflow.sociallabs.node.nodes.logic.IfLogicNodeExecutor;
+import com.workflow.sociallabs.node.nodes.logic.SwitchLogicNodeExecutor;
 import com.workflow.sociallabs.node.nodes.telegram.bot.TelegramBotActionNodeExecutor;
 import com.workflow.sociallabs.node.nodes.telegram.client.TelegramClientActionNodeExecutor;
 import com.workflow.sociallabs.node.nodes.telegram.client.TelegramClientTriggerNodeExecutor;
@@ -17,7 +19,7 @@ import org.springframework.context.annotation.Configuration;
  */
 @Slf4j
 @Configuration
-public class NodeRegistrationConfig {
+public class NodeRegistrationConfiguration {
 
     private final NodeRegistry registry = NodeRegistry.getInstance();
 
@@ -50,6 +52,22 @@ public class NodeRegistrationConfig {
                 NodeCategory.COMMUNICATION,
                 TelegramClientTriggerNodeExecutor.class,
                 CredentialType.TELEGRAM_CLIENT
+        );
+
+        // Logical actions
+        registry.register(
+                NodeDiscriminator.IF_LOGIC,
+                NodeType.LOGIC,
+                NodeCategory.LOGIC,
+                IfLogicNodeExecutor.class,
+                null
+        );
+        registry.register(
+                NodeDiscriminator.SWITCH_LOGIC,
+                NodeType.LOGIC,
+                NodeCategory.LOGIC,
+                SwitchLogicNodeExecutor.class,
+                null
         );
 
         log.info("Registered {} nodes", registry.getAllNodes().size());

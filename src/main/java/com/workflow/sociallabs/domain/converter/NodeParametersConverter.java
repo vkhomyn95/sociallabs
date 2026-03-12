@@ -19,7 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 public class NodeParametersConverter implements AttributeConverter<NodeParameters, String> {
 
     private static final String field = "@type";
-    private final ObjectMapper objectMapper;
+    private static final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     public String convertToDatabaseColumn(NodeParameters parameters) {
@@ -88,7 +88,7 @@ public class NodeParametersConverter implements AttributeConverter<NodeParameter
     /**
      * Конвертувати NodeParameters в типізований клас
      */
-    public <T extends TypedNodeParameters> T toTypedParameters(
+    public static <T extends TypedNodeParameters> T toTypedParameters(
             NodeParameters parameters,
             Class<T> targetClass
     ) {
@@ -111,7 +111,7 @@ public class NodeParametersConverter implements AttributeConverter<NodeParameter
     /**
      * Автоматично визначити тип та конвертувати
      */
-    public TypedNodeParameters toTypedParameters(NodeParameters parameters) {
+    public static TypedNodeParameters toTypedParameters(NodeParameters parameters) {
         if (parameters == null || !parameters.hasType()) {
             return null;
         }
@@ -122,6 +122,7 @@ public class NodeParametersConverter implements AttributeConverter<NodeParameter
                     TypedNodeParameters.class
             );
         } catch (Exception e) {
+            log.error("Failed to convert NodeParameters to TypedNodeParameters", e);
             return null;
         }
     }

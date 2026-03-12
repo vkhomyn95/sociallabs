@@ -1,13 +1,19 @@
 package com.workflow.sociallabs.exception;
 
+import com.workflow.sociallabs.node.core.NodeResult;
 import lombok.Getter;
 
 @Getter
 public class NodeExecutionException extends WorkflowException {
-    private final String nodeId;
 
-    public NodeExecutionException(String message, String nodeId) {
-        super(message, "NODE_EXECUTION_ERROR");
-        this.nodeId = nodeId;
+    private final NodeResult nodeResult;
+
+    public NodeExecutionException(String message, NodeResult nodeResult) {
+        super(message);
+        this.nodeResult = nodeResult;
+    }
+
+    public NodeResult getNodeResult() {
+        return nodeResult;
     }
 }

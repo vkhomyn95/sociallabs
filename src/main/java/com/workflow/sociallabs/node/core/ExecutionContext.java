@@ -33,11 +33,11 @@ public class ExecutionContext {
     private List<Map<String, Object>> inputData;
     @Builder.Default
     private Map<String, Object> workflowVariables = new HashMap<>();
-    private TypedNodeParameters typedParameters;
+    private TypedNodeParameters parameters;
 
 
     // TODO: 12.12.25 Think to remove
-    private Map<String, Object> parameters;
+//    private Map<String, Object> parameters;
     private Map<String, Object> credentials;
     private ExecutionContext previousNode;
     private Map<String, Object> workflowData; // Shared workflow data
@@ -47,18 +47,18 @@ public class ExecutionContext {
      * Отримати типізовані параметри
      */
     @SuppressWarnings("unchecked")
-    public <T extends TypedNodeParameters> T getTypedParameters(Class<T> parametersClass) {
-        if (typedParameters == null) {
+    public <T extends TypedNodeParameters> T getParameters(Class<T> parametersClass) {
+        if (parameters == null) {
             throw new IllegalStateException("Typed parameters not initialized");
         }
 
-        if (!parametersClass.isInstance(typedParameters)) {
+        if (!parametersClass.isInstance(parameters)) {
             throw new IllegalStateException(
-                    "Expected " + parametersClass.getName() + " but got " + typedParameters.getClass().getName()
+                    "Expected " + parametersClass.getName() + " but got " + parameters.getClass().getName()
             );
         }
 
-        return (T) typedParameters;
+        return (T) parameters;
     }
 
     /**

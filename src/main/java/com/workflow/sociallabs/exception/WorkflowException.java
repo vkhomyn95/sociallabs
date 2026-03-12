@@ -8,4 +8,9 @@ public class WorkflowException extends RuntimeException {
         super(message);
         this.errorCode = errorCode;
     }
+
+    public WorkflowException(String message) {
+        super(message);
+        this.errorCode = null;
+    }
 }

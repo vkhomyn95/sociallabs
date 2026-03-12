@@ -37,7 +37,7 @@ public class TelegramBotActionNodeExecutor extends AbstractActionNode {
 
     @Override
     protected Map<String, Object> processItem(Map<String, Object> item, ExecutionContext context) throws Exception {
-        TelegramBotActionParameters params = context.getTypedParameters(TelegramBotActionParameters.class);
+        TelegramBotActionParameters params = context.getParameters(TelegramBotActionParameters.class);
 
         // Валідація
         params.validate();
@@ -71,7 +71,7 @@ public class TelegramBotActionNodeExecutor extends AbstractActionNode {
      */
     @Override
     protected boolean shouldFailOnError(ExecutionContext context) {
-        TelegramBotActionParameters params = context.getTypedParameters(TelegramBotActionParameters.class);
+        TelegramBotActionParameters params = context.getParameters(TelegramBotActionParameters.class);
 
         return params.getContinueOnFail();
     }

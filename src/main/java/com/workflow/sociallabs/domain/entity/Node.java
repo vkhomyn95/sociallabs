@@ -32,7 +32,7 @@ public class Node {
 
     @Enumerated
     @Column(nullable = false)
-    private NodeType type; // TRIGGER, ACTION, TRANSFORM
+    private NodeType type; // TRIGGER, ACTION, TRANSFORM, LOGIC
 
     @Enumerated
     private NodeDiscriminator discriminator;

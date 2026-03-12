@@ -3,16 +3,16 @@ package com.workflow.sociallabs.node.nodes.telegram.client;
 import com.workflow.sociallabs.model.NodeDiscriminator;
 import com.workflow.sociallabs.node.base.AbstractTriggerNode;
 import com.workflow.sociallabs.node.core.ExecutionContext;
-import com.workflow.sociallabs.node.core.NodeResult;
+import com.workflow.sociallabs.node.core.TriggerEventPublisher;
 import com.workflow.sociallabs.node.nodes.telegram.client.listeners.TelegramClientUpdateListener;
 import com.workflow.sociallabs.node.nodes.telegram.client.parameters.TelegramClientTriggerParameters;
-import it.tdlight.client.*;
+import it.tdlight.client.SimpleTelegramClient;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.lang.Object;
-import java.util.*;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -27,6 +27,9 @@ public class TelegramClientTriggerNodeExecutor extends AbstractTriggerNode {
 
     @Autowired
     private TelegramClientService telegramService;
+
+    @Autowired
+    private TriggerEventPublisher eventPublisher;
 
     // Активні listeners: sessionId -> UpdateHandler. Один клієнт - один telegram client handler
     private final Map<String, TelegramClientUpdateListener> activeHandlers = new ConcurrentHashMap<>();
@@ -44,17 +47,18 @@ public class TelegramClientTriggerNodeExecutor extends AbstractTriggerNode {
      * Активувати тригер - почати слухати Telegram updates
      */
     @Override
-    public boolean activate(ExecutionContext context) throws Exception {
+    public boolean activate(ExecutionContext context) {
+        Long workflowId = context.getWorkflowId();
         String nodeId = context.getNodeId();
-        log.info("Activating Telegram trigger for node: {}", nodeId);
 
-        TelegramClientTriggerParameters params = context.getTypedParameters(TelegramClientTriggerParameters.class);
+        log.info("Activating Telegram trigger for node: {}, workflowId: {}", nodeId, workflowId);
+
+        TelegramClientTriggerParameters params = context.getParameters(TelegramClientTriggerParameters.class);
         params.validate();
 
         String sessionId = context.getCredential(SESSION_ID_PARAM, String.class);
 
         SimpleTelegramClient client = telegramService.getSession(sessionId);
-
         if (client == null) throw new IllegalStateException("Telegram client not found for session: " + sessionId);
 
         if (activeHandlers.containsKey(sessionId)) {
@@ -62,10 +66,14 @@ public class TelegramClientTriggerNodeExecutor extends AbstractTriggerNode {
         }
 
         // Створюємо та реєструємо update handler
-//        TelegramClientUpdateListener handler = new TelegramClientUpdateListener(nodeId, params, this::handleTelegramUpdate);
-
-//        client.addUpdatesHandler(handler);
-//        activeHandlers.put(sessionId, handler);
+        TelegramClientUpdateListener handler = new TelegramClientUpdateListener(
+                workflowId,
+                nodeId,
+                params,
+                event -> dispatchTriggerEvent(workflowId, nodeId, event)
+        );
+        client.addUpdatesHandler(handler);
+        activeHandlers.put(sessionId, handler);
 
         log.info("Telegram trigger activated for node: {} (events: {})", nodeId, params.getEvents());
 
@@ -73,31 +81,33 @@ public class TelegramClientTriggerNodeExecutor extends AbstractTriggerNode {
     }
 
     /**
+     * Dispatch trigger event через Spring Events
+     * Викликається коли отримано подію від Telegram
+     */
+    private void dispatchTriggerEvent(Long workflowId, String nodeId, Map<String, Object> event) {
+        if (workflowId == null) {
+            log.warn("No workflow mapping found for node: {}", nodeId);
+            return;
+        }
+
+        log.debug("Dispatching trigger event for node {} in workflow {}: {}", nodeId, workflowId, event.get("type"));
+
+        // Публікуємо event через Spring Event Bus
+        eventPublisher.publishTriggerEvent(workflowId, nodeId, event);
+    }
+
+    /**
      * Деактивувати тригер - припинити слухати updates
      */
     @Override
-    public void deactivate(ExecutionContext context) throws Exception {
+    public void deactivate(ExecutionContext context) {
+        Long workflowId = context.getWorkflowId();
         String nodeId = context.getNodeId();
-        log.info("Deactivating Telegram trigger for node: {}", nodeId);
+        log.info("Deactivating Telegram trigger for node: {} in workflow: {}", nodeId, workflowId);
 
-//        TelegramUpdateHandler handler = activeHandlers.remove(nodeId);
-//
-//        if (handler != null) {
-//             TDLight не має методу removeUpdatesHandler, тому просто маркуємо як inactive
-//            handler.setActive(false);
-//            log.info("Telegram trigger deactivated for node: {}", nodeId);
-//        }
-    }
+        String sessionId = context.getCredential(SESSION_ID_PARAM, String.class);
 
-    @Override
-    protected NodeResult executeInternal(ExecutionContext context) throws Exception {
-        // Цей метод викликається коли тригер спрацьовує
-        Map<String, Object> messageData = context.getFirstInputItem();
-
-        if (messageData == null || messageData.isEmpty()) {
-            return NodeResult.error("No message data received", null);
-        }
-
-       return null;
+        TelegramClientUpdateListener handler = activeHandlers.get(sessionId);
+        Optional.ofNullable(handler).ifPresent(h -> h.setActive(false));
     }
 }

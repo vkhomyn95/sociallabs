@@ -1,6 +1,5 @@
 package com.workflow.sociallabs.dto.request;
 
-import com.workflow.sociallabs.domain.enums.NodeType;
 import com.workflow.sociallabs.model.NodeDiscriminator;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
@@ -20,7 +19,7 @@ public class NodeRequest {
     /**
      * UUID node (опціонально для нових нод, буде згенеровано автоматично)
      */
-    private String id;
+    private String nodeId;
 
     /**
      * Дискримінатор node - визначає конкретний тип (обов'язково)

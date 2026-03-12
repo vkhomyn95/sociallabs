@@ -149,7 +149,7 @@ public class WorkflowEngine {
         if (!result.isSuccess()) {
             throw new NodeExecutionException(
                     "Node execution failed: " + nodeInstance.getName(),
-                    result.getError()
+                    result
             );
         }
 

@@ -37,7 +37,7 @@ public class TelegramClientActionNodeExecutor extends AbstractActionNode {
 
     @Override
     protected Map<String, Object> processItem(Map<String, Object> item, ExecutionContext context) throws Exception {
-        TelegramClientActionParameters params = context.getTypedParameters(TelegramClientActionParameters.class);
+        TelegramClientActionParameters params = context.getParameters(TelegramClientActionParameters.class);
 
         // Валідація
         params.validate();
@@ -75,7 +75,7 @@ public class TelegramClientActionNodeExecutor extends AbstractActionNode {
 
     @Override
     protected boolean shouldFailOnError(ExecutionContext context) {
-        TelegramClientActionParameters params = context.getTypedParameters(TelegramClientActionParameters.class);
+        TelegramClientActionParameters params = context.getParameters(TelegramClientActionParameters.class);
         return !params.getContinueOnFail();
     }
 }

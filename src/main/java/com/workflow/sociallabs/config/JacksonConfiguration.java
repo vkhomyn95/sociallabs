@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Configuration;
  * Налаштування JSON serialization/deserialization
  */
 @Configuration
-public class JacksonConfig {
+public class JacksonConfiguration {
 
     @Bean
     public com.fasterxml.jackson.databind.ObjectMapper objectMapper() {

@@ -177,7 +177,7 @@ public class NodeService {
                     .node(tempNode)
                     .inputData(inputData)
                     .credentials(credentials)
-                    .typedParameters(typedParams)
+                    .parameters(typedParams)
                     .workflowVariables(new HashMap<>())
                     .workflowData(new HashMap<>())
                     .startTime(Instant.now())

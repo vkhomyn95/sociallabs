@@ -24,7 +24,7 @@ public class GlobalExceptionHandler {
         ErrorResponse error = ErrorResponse.builder()
                 .code("NODE_EXECUTION_ERROR")
                 .message(ex.getMessage())
-                .details(Map.of("nodeId", ex.getNodeId()))
+//                .details(Map.of("nodeId", ex.getNodeResult().getData()))
                 .timestamp(LocalDateTime.now())
                 .build();
 

@@ -40,28 +40,28 @@ public class TelegramBotTriggerNodeExecutor extends AbstractTriggerNode {
      */
     @Override
     public boolean activate(ExecutionContext context) throws Exception {
-        String botToken = context.getCredential("botToken", String.class);
-        if (botToken == null) {
-            throw new IllegalStateException("Telegram bot token not found");
-        }
-
-        // Отримати або згенерувати webhook path
-        String webhookPath = context.getParameter("webhookPath", String.class);
-        if (webhookPath == null || webhookPath.isEmpty()) {
-            webhookPath = "telegram-" + context.getNodeId();
-        }
-
-        // Побудувати повний webhook URL
-        String webhookUrl = buildWebhookUrl(context.getExecutionId(), webhookPath);
-
-        // Встановити webhook в Telegram
-        boolean success = setTelegramWebhook(botToken, webhookUrl);
-
-        if (success) {
-            activeWebhooks.put(context.getNodeId(), webhookUrl);
-            log.info("Telegram webhook activated: {}", webhookUrl);
-            return true;
-        }
+//        String botToken = context.getCredential("botToken", String.class);
+//        if (botToken == null) {
+//            throw new IllegalStateException("Telegram bot token not found");
+//        }
+//
+//        // Отримати або згенерувати webhook path
+//        String webhookPath = context.getParameter("webhookPath", String.class);
+//        if (webhookPath == null || webhookPath.isEmpty()) {
+//            webhookPath = "telegram-" + context.getNodeId();
+//        }
+//
+//        // Побудувати повний webhook URL
+//        String webhookUrl = buildWebhookUrl(context.getExecutionId(), webhookPath);
+//
+//        // Встановити webhook в Telegram
+//        boolean success = setTelegramWebhook(botToken, webhookUrl);
+//
+//        if (success) {
+//            activeWebhooks.put(context.getNodeId(), webhookUrl);
+//            log.info("Telegram webhook activated: {}", webhookUrl);
+//            return true;
+//        }
 
         return false;
     }
@@ -88,64 +88,65 @@ public class TelegramBotTriggerNodeExecutor extends AbstractTriggerNode {
      */
     @Override
     protected NodeResult executeInternal(ExecutionContext context) throws Exception {
-        // Отримати дані webhook (передані через inputData)
-        Map<String, Object> webhookData = context.getFirstInputItem();
+//        // Отримати дані webhook (передані через inputData)
+//        Map<String, Object> webhookData = context.getFirstInputItem();
+//
+//        if (webhookData == null || webhookData.isEmpty()) {
+//            return NodeResult.error("No webhook data received", null);
+//        }
+//
+//        // Перевірити фільтри
+//        if (!matchesFilters(webhookData, context)) {
+//            log.debug("Message doesn't match filters, skipping");
+//            return NodeResult.success(Collections.emptyList()); // Skip
+//        }
+//
+//        // Збагатити дані
+//        Map<String, Object> enrichedData = new HashMap<>(webhookData);
+//        enrichedData.put("triggerTime", java.time.Instant.now().toString());
+//        enrichedData.put("nodeId", context.getNodeId());
 
-        if (webhookData == null || webhookData.isEmpty()) {
-            return NodeResult.error("No webhook data received", null);
-        }
-
-        // Перевірити фільтри
-        if (!matchesFilters(webhookData, context)) {
-            log.debug("Message doesn't match filters, skipping");
-            return NodeResult.success(Collections.emptyList()); // Skip
-        }
-
-        // Збагатити дані
-        Map<String, Object> enrichedData = new HashMap<>(webhookData);
-        enrichedData.put("triggerTime", java.time.Instant.now().toString());
-        enrichedData.put("nodeId", context.getNodeId());
-
-        return NodeResult.success(enrichedData);
+//        return NodeResult.success(enrichedData);
+        return null;
     }
 
     /**
      * Перевірити чи повідомлення відповідає фільтрам
      */
-    private boolean matchesFilters(Map<String, Object> data, ExecutionContext context) {
-        String triggerOn = context.getParameter("triggerOn", String.class, "message");
-
-        // Перевірити тип trigger
-        if ("command".equals(triggerOn)) {
-            String command = context.getParameter("command", String.class);
-            String text = extractText(data);
-
-            if (text == null || !text.startsWith("/" + command)) {
-                return false;
-            }
-        }
-
-        // Перевірити chat ID filter
-        String chatIdFilter = context.getParameter("chatIdFilter", String.class);
-        if (chatIdFilter != null && !chatIdFilter.isEmpty()) {
-            String chatId = extractChatId(data);
-            if (!chatIdFilter.equals(chatId)) {
-                return false;
-            }
-        }
-
-        // Перевірити message types
-        @SuppressWarnings("unchecked")
-        List<String> messageTypes = context.getParameter("messageTypes", List.class);
-        if (messageTypes != null && !messageTypes.isEmpty()) {
-            String messageType = detectMessageType(data);
-            if (!messageTypes.contains(messageType)) {
-                return false;
-            }
-        }
-
-        return true;
-    }
+//    private boolean matchesFilters(Map<String, Object> data, ExecutionContext context) {
+//        String triggerOn = context.getParameter("triggerOn", String.class, "message");
+//
+//        // Перевірити тип trigger
+//        if ("command".equals(triggerOn)) {
+//            String command = context.getParameter("command", String.class);
+//            String text = extractText(data);
+//
+//            if (text == null || !text.startsWith("/" + command)) {
+//                return false;
+//            }
+//        }
+//
+//        // Перевірити chat ID filter
+//        String chatIdFilter = context.getParameter("chatIdFilter", String.class);
+//        if (chatIdFilter != null && !chatIdFilter.isEmpty()) {
+//            String chatId = extractChatId(data);
+//            if (!chatIdFilter.equals(chatId)) {
+//                return false;
+//            }
+//        }
+//
+//        // Перевірити message types
+//        @SuppressWarnings("unchecked")
+//        List<String> messageTypes = context.getParameter("messageTypes", List.class);
+//        if (messageTypes != null && !messageTypes.isEmpty()) {
+//            String messageType = detectMessageType(data);
+//            if (!messageTypes.contains(messageType)) {
+//                return false;
+//            }
+//        }
+//
+//        return true;
+//    }
 
     /**
      * Встановити webhook в Telegram

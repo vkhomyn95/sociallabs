@@ -3,6 +3,7 @@ package com.workflow.sociallabs.domain.repository;
 import com.workflow.sociallabs.domain.entity.Node;
 import com.workflow.sociallabs.domain.enums.NodeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -29,4 +30,8 @@ public interface NodeRepository extends JpaRepository<Node, Long> {
         WHERE LOWER(n.name) LIKE LOWER(CONCAT('%', :search, '%'))
         """)
     List<Node> searchNodes(@Param("search") String search);
+
+    @Modifying
+    @Query("DELETE FROM Node n WHERE n.workflow.id = :workflowId")
+    void deleteAllByWorkflowId(@Param("workflowId") Long workflowId);
 }

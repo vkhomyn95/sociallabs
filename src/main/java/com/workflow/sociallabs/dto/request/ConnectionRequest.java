@@ -1,5 +1,6 @@
 package com.workflow.sociallabs.dto.request;
 
+import com.workflow.sociallabs.domain.enums.ConnectionType;
 import lombok.*;
 
 /**
@@ -13,7 +14,8 @@ import lombok.*;
 public class ConnectionRequest {
 
     private String sourceNodeId;
-    private String sourceOutput;
+    private Integer sourceOutputIndex;
     private String targetNodeId;
-    private String targetInput;
+    private Integer targetInputIndex;
+    private ConnectionType type = ConnectionType.MAIN;
 }

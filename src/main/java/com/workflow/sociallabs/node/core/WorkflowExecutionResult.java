@@ -40,14 +40,4 @@ public class WorkflowExecutionResult {
                 .completedAt(Instant.now())
                 .build();
     }
-
-    /**
-     * Отримати час виконання
-     */
-    public long getExecutionTimeMs() {
-        if (context != null) {
-            return context.getExecutionTimeMs();
-        }
-        return 0;
-    }
 }

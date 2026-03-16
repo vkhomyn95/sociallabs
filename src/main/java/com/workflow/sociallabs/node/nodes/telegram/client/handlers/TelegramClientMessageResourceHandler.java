@@ -1,6 +1,8 @@
 package com.workflow.sociallabs.node.nodes.telegram.client.handlers;
 
+import com.workflow.sociallabs.execution.context.DataMapper;
 import com.workflow.sociallabs.node.nodes.telegram.client.parameters.TelegramClientActionParameters;
+import com.workflow.sociallabs.service.ExpressionEvaluator;
 import it.tdlight.client.SimpleTelegramClient;
 import it.tdlight.jni.TdApi;
 import lombok.extern.slf4j.Slf4j;
@@ -9,27 +11,67 @@ import java.util.Map;
 
 
 @Slf4j
-public class TelegramClientMessageResourceHandler extends TelegramClientResourceHandler {
+public class TelegramClientMessageResourceHandler extends TelegramClientBaseHandler implements TelegramClientResourceHandler {
 
-    public static Map<String, Object> execute(
+    @Override
+    public Map<String, Object> execute(
             SimpleTelegramClient client,
             TelegramClientActionParameters params,
             Map<String, Object> item
     ) throws Exception {
+
         return switch (params.getOperation()) {
-            case SEND -> executeSendMessage(client, params, item);
-//            case EDIT -> executeEditMessage(client, params, item);
-//            case DELETE -> executeDeleteMessage(client, params, item);
-//            case FORWARD -> executeForwardMessages(client, params, item);
-//            case PIN -> executePinMessage(client, params, item);
-//            case UNPIN -> executeUnpinMessage(client, params, item);
-//            case READ -> executeReadMessages(client, params, item);
-//            case GET -> executeGetMessage(client, params, item);
-//            case GET_HISTORY -> executeGetHistory(client, params, item);
-//            case SEND_TYPING -> executeSendTyping(client, params, item);
-            default -> throw new IllegalArgumentException("Unsupported operation for message: " + params.getOperation());
+            case SEND   -> sendMessage(client, params, item);
+//            case EDIT   -> editMessage(client, params, item);
+//            case DELETE -> deleteMessage(client, params, item);
+            default -> throw new IllegalArgumentException("Unsupported operation for MESSAGE: " + params.getOperation());
         };
     }
+
+    private Map<String, Object> sendMessage(
+            SimpleTelegramClient client,
+            TelegramClientActionParameters params,
+            Map<String, Object> item
+    ) throws Exception {
+        long chatId = Long.parseLong((String) ExpressionEvaluator.resolveValue(params.getChatId(), item));
+
+        TdApi.SendMessage request = new TdApi.SendMessage();
+        request.chatId = chatId;
+
+        TdApi.FormattedText formattedText = new TdApi.FormattedText();
+        formattedText.text = (String) ExpressionEvaluator.resolveValue(params.getText(), item);
+
+        TdApi.InputMessageText inputMessage = new TdApi.InputMessageText();
+        inputMessage.text = formattedText;
+
+        request.inputMessageContent = inputMessage;
+
+        TdApi.Message response = sendTelegramRequest(client, request, params);
+
+        return DataMapper.convert(response);
+    }
+
+
+
+//    public static Map<String, Object> execute(
+//            SimpleTelegramClient client,
+//            TelegramClientActionParameters params,
+//            Map<String, Object> item
+//    ) throws Exception {
+//        return switch (params.getOperation()) {
+//            case SEND -> executeSendMessage(client, params, item);
+////            case EDIT -> executeEditMessage(client, params, item);
+////            case DELETE -> executeDeleteMessage(client, params, item);
+////            case FORWARD -> executeForwardMessages(client, params, item);
+////            case PIN -> executePinMessage(client, params, item);
+////            case UNPIN -> executeUnpinMessage(client, params, item);
+////            case READ -> executeReadMessages(client, params, item);
+////            case GET -> executeGetMessage(client, params, item);
+////            case GET_HISTORY -> executeGetHistory(client, params, item);
+////            case SEND_TYPING -> executeSendTyping(client, params, item);
+//            default -> throw new IllegalArgumentException("Unsupported operation for message: " + params.getOperation());
+//        };
+//    }
 
     private static Map<String, Object> executeSendMessage(
             SimpleTelegramClient client,

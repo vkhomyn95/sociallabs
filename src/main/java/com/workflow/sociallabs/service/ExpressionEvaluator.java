@@ -8,14 +8,13 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-@Service
 @Slf4j
 public class ExpressionEvaluator {
 
     /**
      * Резолвить {{$json.field}} вирази з даних
      */
-    public Object resolveValue(String expression, Map<String, Object> data) {
+    public static Object resolveValue(String expression, Map<String, Object> data) {
         if (expression == null) return null;
 
         // Literal — повертаємо як є
@@ -35,7 +34,7 @@ public class ExpressionEvaluator {
         return resolved;
     }
 
-    private Object getNestedValue(Map<String, Object> data, String path) {
+    private static Object getNestedValue(Map<String, Object> data, String path) {
         String[] parts = path.split("\\.");
         Object current = data;
         for (String part : parts) {
@@ -49,7 +48,7 @@ public class ExpressionEvaluator {
     /**
      * Виконати порівняння двох значень
      */
-    public boolean evaluate(Object left, LogicOperation operation, Object right, String type) {
+    public static boolean evaluate(Object left, LogicOperation operation, Object right, String type) {
         if (left == null) return false;
 
         return switch (operation) {
@@ -72,7 +71,7 @@ public class ExpressionEvaluator {
         };
     }
 
-    private int compareNumbers(Object left, Object right) {
+    private static int compareNumbers(Object left, Object right) {
         try {
             return Double.compare(
                     Double.parseDouble(String.valueOf(left)),

@@ -53,9 +53,10 @@ public class NodeController {
             @PathVariable String nodeType,
             @RequestBody Map<String, Object> parameters
     ) {
-        log.info("POST /api/v1/nodes/{}/validate - Validating parameters", nodeType);
-        Map<String, Object> result = nodeService.validateNodeParameters(nodeType, parameters);
-        return ResponseEntity.ok(result);
+//        log.info("POST /api/v1/nodes/{}/validate - Validating parameters", nodeType);
+//        Map<String, Object> result = nodeService.validateNodeParameters(nodeType, parameters);
+//        return ResponseEntity.ok(result);
+        return null;
     }
 
     /**

@@ -4,25 +4,21 @@ import com.workflow.sociallabs.model.NodeDiscriminator;
 import com.workflow.sociallabs.node.base.AbstractNode;
 import com.workflow.sociallabs.node.core.ExecutionContext;
 import com.workflow.sociallabs.node.core.NodeResult;
+import com.workflow.sociallabs.node.core.WorkflowItem;
 import com.workflow.sociallabs.node.nodes.logic.models.IfCombineLogicOperation;
 import com.workflow.sociallabs.node.nodes.logic.models.IfLogicGroup;
 import com.workflow.sociallabs.node.nodes.logic.parameters.IfNodeParameters;
 import com.workflow.sociallabs.service.ExpressionEvaluator;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 @Slf4j
 @Component
+@SuppressWarnings("Duplicates")
 public class IfLogicNodeExecutor extends AbstractNode {
-
-    @Autowired
-    private ExpressionEvaluator evaluator;
 
     public IfLogicNodeExecutor() {
         super(NodeDiscriminator.IF_LOGIC);
@@ -31,51 +27,43 @@ public class IfLogicNodeExecutor extends AbstractNode {
     @Override
     protected NodeResult executeInternal(ExecutionContext context) {
         IfNodeParameters params = context.getParameters(IfNodeParameters.class);
-
-        // Валідація
         params.validate();
 
-        List<Map<String, Object>> inputData = context.getInputData();
-        List<Map<String, Object>> trueItems = new ArrayList<>();
-        List<Map<String, Object>> falseItems = new ArrayList<>();
+        List<WorkflowItem> trueItems  = new ArrayList<>();
+        List<WorkflowItem> falseItems = new ArrayList<>();
 
-        for (Map<String, Object> item : inputData) {
-            boolean result = evaluateConditions(params, item);
-            if (result) {
+        for (WorkflowItem item : context.getInputItems()) {
+            if (evaluateConditions(params, item.json())) {
                 trueItems.add(item);
             } else {
                 falseItems.add(item);
             }
         }
 
-        Map<String, List<Map<String, Object>>> outputs = new LinkedHashMap<>();
-        outputs.put("true", trueItems);
-        outputs.put("false", falseItems);
+        log.debug("IF node {}: total={} true={} false={}",
+                context.getNodeId(),
+                context.getInputItems().size(),
+                trueItems.size(),
+                falseItems.size());
 
-        log.debug("IF node: {} items → true={}, false={}", inputData.size(), trueItems.size(), falseItems.size());
-
-        return NodeResult.multiOutput(outputs);
+        // outputs[0] = true branch, outputs[1] = false branch
+        return NodeResult.multiOutput(List.of(trueItems, falseItems));
     }
 
-    private boolean evaluateConditions(IfNodeParameters params, Map<String, Object> item) {
+    private boolean evaluateConditions(IfNodeParameters params, java.util.Map<String, Object> json) {
         List<IfLogicGroup> conditions = params.getConditions();
         boolean isAnd = IfCombineLogicOperation.AND.equals(params.getCombineOperation());
 
         for (IfLogicGroup condition : conditions) {
-            Object leftResolved  = evaluator.resolveValue(condition.getLeftValue(), item);
-            Object rightResolved = evaluator.resolveValue(condition.getRightValue(), item);
+            Object left  = ExpressionEvaluator.resolveValue(condition.getLeftValue(),  json);
+            Object right = ExpressionEvaluator.resolveValue(condition.getRightValue(), json);
 
-            boolean conditionResult = evaluator.evaluate(
-                    leftResolved,
-                    condition.getOperation(),
-                    rightResolved,
-                    condition.getType()
-            );
+            boolean result = ExpressionEvaluator.evaluate(left, condition.getOperation(), right, condition.getType());
 
-            if (isAnd && !conditionResult) return false;
-            if (!isAnd && conditionResult) return true;
+            if (isAnd  && !result) return false; // AND: один false → одразу false
+            if (!isAnd &&  result) return true;  // OR:  один true  → одразу true
         }
 
-        return isAnd; // AND: всі true → true; OR: жодне не спрацювало → false
+        return isAnd; // AND: всі пройшли → true | OR: жоден не спрацював → false
     }
 }

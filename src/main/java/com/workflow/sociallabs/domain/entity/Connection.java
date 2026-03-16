@@ -1,5 +1,6 @@
 package com.workflow.sociallabs.domain.entity;
 
+import com.workflow.sociallabs.domain.enums.ConnectionType;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -15,7 +16,7 @@ import java.time.LocalDateTime;
                 @Index(name = "idx_connection_target", columnList = "target_node_id")
         },
         uniqueConstraints = {
-                @UniqueConstraint(columnNames = {"source_node_id", "source_output", "target_node_id", "target_input"})
+                @UniqueConstraint(columnNames = {"source_node_id", "source_output_index", "target_node_id", "target_input_index"})
         }
 )
 @Getter
@@ -37,17 +38,22 @@ public class Connection {
     @JoinColumn(name = "source_node_id")
     private Node sourceNode;
 
-    @Column(name = "source_output", nullable = false, length = 50)
+    @Column(name = "source_output_index", nullable = false)
     @Builder.Default
-    private String sourceOutput = "main"; // Output port name
+    private Integer sourceOutputIndex = 0;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "target_node_id", nullable = false)
     private Node targetNode;
 
-    @Column(name = "target_input", nullable = false, length = 50)
+    @Column(name = "target_input_index", nullable = false)
     @Builder.Default
-    private String targetInput = "main"; // Input port name
+    private Integer targetInputIndex = 0;
+
+    @Enumerated
+    @Column(nullable = false)
+    @Builder.Default
+    private ConnectionType type = ConnectionType.MAIN;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

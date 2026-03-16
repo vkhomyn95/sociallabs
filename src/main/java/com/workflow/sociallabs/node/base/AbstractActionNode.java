@@ -3,10 +3,10 @@ package com.workflow.sociallabs.node.base;
 import com.workflow.sociallabs.model.NodeDiscriminator;
 import com.workflow.sociallabs.node.core.ExecutionContext;
 import com.workflow.sociallabs.node.core.NodeResult;
+import com.workflow.sociallabs.node.core.WorkflowItem;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -34,30 +34,30 @@ public abstract class AbstractActionNode extends AbstractNode {
      */
     @Override
     protected NodeResult executeInternal(ExecutionContext context) throws Exception {
-        List<Map<String, Object>> inputData = context.getInputData();
-        List<Map<String, Object>> outputData = new ArrayList<>();
+        List<WorkflowItem> inputItems = context.getInputItems();
+        List<WorkflowItem> outputItems = new ArrayList<>(inputItems.size());
 
-        // Обробка кожного елемента
-        for (Map<String, Object> item : inputData) {
+        for (WorkflowItem item : inputItems) {
             try {
-                Map<String, Object> result = processItem(item, context);
-                if (result != null) {
-                    outputData.add(result);
+                Map<String, Object> resultJson = processItem(item.json(), context);
+                if (resultJson != null) {
+                    // Зберігаємо binary з вхідного item якщо є
+                    outputItems.add(new WorkflowItem(resultJson, item.binary()));
                 }
             } catch (Exception e) {
                 if (shouldFailOnError(context)) {
                     throw e;
-                } else {
-                    log.warn("Failed to process item, continuing: {}", e.getMessage());
-                    // Можна додати помилку в метадані
-                    Map<String, Object> errorItem = new HashMap<>(item);
-                    errorItem.put("_error", e.getMessage());
-                    outputData.add(errorItem);
                 }
+                log.warn("Node {}: failed to process item, continuing: {}", context.getNodeId(), e.getMessage());
+
+                // Додаємо item з позначкою помилки, не губимо дані
+                Map<String, Object> errorJson = new java.util.HashMap<>(item.json());
+                errorJson.put("_error", e.getMessage());
+                outputItems.add(new WorkflowItem(errorJson, item.binary()));
             }
         }
 
-        return NodeResult.success(outputData);
+        return NodeResult.success(outputItems);
     }
 
     /**

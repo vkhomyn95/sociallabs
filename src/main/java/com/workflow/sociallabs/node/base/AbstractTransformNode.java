@@ -29,8 +29,9 @@ public abstract class AbstractTransformNode extends AbstractNode {
 
     @Override
     protected NodeResult executeInternal(ExecutionContext context) throws Exception {
-        List<Map<String, Object>> inputData = context.getInputData();
-        List<Map<String, Object>> transformedData = transform(inputData, context);
-        return NodeResult.success(transformedData);
+//        List<Map<String, Object>> inputData = context.getInputData();
+//        List<Map<String, Object>> transformedData = transform(inputData, context);
+//        return NodeResult.success(transformedData);
+        return null;
     }
 }

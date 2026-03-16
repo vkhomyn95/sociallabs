@@ -40,19 +40,11 @@ public interface ConnectionRepository extends JpaRepository<Connection, Long> {
     );
 
     /**
-     * Перевірити чи існує з'єднання
-     */
-    boolean existsBySourceNodeIdAndSourceOutputAndTargetNodeIdAndTargetInput(
-            Long sourceNodeId,
-            String sourceOutput,
-            Long targetNodeId,
-            String targetInput
-    );
-
-    /**
      * Видалити всі з'єднання workflow
      */
-    void deleteByWorkflowId(Long workflowId);
+    @Modifying
+    @Query("DELETE FROM Connection c WHERE c.workflow.id = :workflowId")
+    void deleteAllByWorkflowId(@Param("workflowId") Long workflowId);
 
     /**
      * Видалити всі з'єднання що містять ноду

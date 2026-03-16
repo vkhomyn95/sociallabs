@@ -31,7 +31,7 @@ public class WorkflowController {
     @GetMapping
     public ResponseEntity<List<WorkflowResponse>> getAllWorkflows() {
         log.info("GET /api/v1/workflows - Fetching all workflows");
-        List<WorkflowResponse> workflows = workflowService.getAllWorkflows();
+        List<WorkflowResponse> workflows = workflowService.getWorkflows();
         return ResponseEntity.ok(workflows);
     }
 

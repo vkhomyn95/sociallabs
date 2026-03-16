@@ -2,10 +2,9 @@ package com.workflow.sociallabs.execution.engine;
 
 import com.workflow.sociallabs.domain.converter.NodeParametersConverter;
 import com.workflow.sociallabs.domain.entity.Workflow;
-import com.workflow.sociallabs.domain.repository.WorkflowRepository;
 import com.workflow.sociallabs.exception.NodeExecutionException;
 import com.workflow.sociallabs.node.core.*;
-import com.workflow.sociallabs.service.WorkflowExecutionGraphCache;
+import com.workflow.sociallabs.service.WorkflowExecutionCache;
 import com.workflow.sociallabs.service.WorkflowTriggerManager;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
@@ -25,9 +24,8 @@ import java.util.concurrent.*;
 @RequiredArgsConstructor
 public class WorkflowExecutionService {
 
-    private final WorkflowRepository workflowRepository;
     private final NodeExecutorRegistry executorRegistry;
-    private final WorkflowExecutionGraphCache graphCache;
+    private final WorkflowExecutionCache graphCache;
 
     // Thread pool для асинхронного виконання workflow
     private final ExecutorService executorService = Executors.newCachedThreadPool();
@@ -52,7 +50,7 @@ public class WorkflowExecutionService {
         }
 
         // Завантажуємо execution graph в кеш
-        WorkflowExecutionGraph graph = graphCache.getOrBuildGraph(workflow.getId());
+        WorkflowExecutionGraph graph = graphCache.getGraph(workflow.getId());
 
         // Створюємо manager для тригерів
         WorkflowTriggerManager triggerManager = new WorkflowTriggerManager(
@@ -97,19 +95,14 @@ public class WorkflowExecutionService {
             try {
                 log.info("Executing workflow {} triggered by node {}", workflowId, triggerNodeId);
 
-                WorkflowExecutionGraph graph = graphCache.getOrBuildGraph(workflowId);
+                WorkflowExecutionGraph graph = graphCache.getGraph(workflowId);
 
                 // Створюємо execution context
-                WorkflowExecutionContext executionContext = new WorkflowExecutionContext(
-                        workflowId,
-                        triggerNodeId,
-                        triggerData
-                );
+                WorkflowExecutionContext ctx = new WorkflowExecutionContext(workflowId, triggerNodeId, triggerData);
 
-                // Виконуємо граф починаючи з тригера
-                executeGraph(graph, triggerNodeId, executionContext);
+                executeGraph(graph, triggerNodeId, ctx);
 
-                return WorkflowExecutionResult.success(executionContext);
+                return WorkflowExecutionResult.success(ctx);
 
             } catch (Exception e) {
                 log.error("Workflow execution failed: {}", e.getMessage(), e);
@@ -119,157 +112,121 @@ public class WorkflowExecutionService {
     }
 
     /**
-     * Виконати граф нод починаючи з заданої ноди
+     * Queue-based engine.
+     * ExecutionJob містить: nodeId + inputItems по reference.
+     * Engine не знає семантику портів — тільки індекси.
      */
     private void executeGraph(
             WorkflowExecutionGraph graph,
             String startNodeId,
-            WorkflowExecutionContext executionContext) throws Exception {
+            WorkflowExecutionContext ctx) {
 
-        Queue<GraphNode> executionQueue = new LinkedList<>();
-        Set<String> executed = new HashSet<>();
+        record ExecutionJob(String nodeId, List<WorkflowItem> inputItems) {}
 
-        // Додаємо стартову ноду
-        GraphNode startNode = graph.getNode(startNodeId);
-        executionQueue.offer(startNode);
+        Deque<ExecutionJob> queue = new ArrayDeque<>();
 
-        while (!executionQueue.isEmpty()) {
-            GraphNode currentNode = executionQueue.poll();
+        // Стартовий job: trigger отримує triggerData як один item
+        queue.add(new ExecutionJob(
+                startNodeId,
+                WorkflowItem.single(ctx.getTriggerData())
+        ));
 
-            if (executed.contains(currentNode.getNodeId())) {
+        while (!queue.isEmpty()) {
+            ExecutionJob job = queue.poll();
+            String nodeId = job.nodeId();
+
+            // Merge node: чекаємо поки всі вхідні виконані
+            if (!areAllIncomingExecuted(nodeId, graph, ctx)) {
+                queue.addLast(job); // повернути в кінець черги
                 continue;
             }
 
-            // Перевіряємо чи всі залежності виконані
-            if (!areAllDependenciesExecuted(currentNode, executed)) {
-                // Повертаємо в чергу для повторної обробки
-                executionQueue.offer(currentNode);
-                continue;
+            // Вже виконана (може прийти кілька разів для merge)
+            if (ctx.isExecuted(nodeId)) continue;
+
+            GraphNode node = graph.getNode(nodeId);
+
+            NodeResult result = executeNode(node, job.inputItems(), ctx);
+            ctx.setNodeResult(nodeId, result);
+
+            if (!result.isSuccess()) {
+                throw new NodeExecutionException("Node execution failed: " + nodeId, result);
             }
 
-            // Виконуємо ноду
-            executeNode(currentNode, executionContext);
-            executed.add(currentNode.getNodeId());
+            // Для кожного вихідного ребра — додати наступний job
+            // items передаються по reference (не копіюємо)
+            for (GraphEdge edge : graph.getOutgoing(nodeId)) {
+                List<WorkflowItem> portItems = result.getOutputItems(edge.sourceOutputIndex());
 
-            // Додаємо наступні ноди в чергу
-            for (GraphNode nextNode : currentNode.getNextNodes()) {
-                if (!executed.contains(nextNode.getNodeId())) {
-                    executionQueue.offer(nextNode);
-                }
+                // IF node може мати пустий порт — не додаємо job
+                if (portItems.isEmpty()) continue;
+
+                // Для merge нод: збираємо items з усіх вхідних
+                List<WorkflowItem> targetInput = collectInputForNode(edge.targetNodeId(), graph, ctx, portItems);
+
+                queue.add(new ExecutionJob(edge.targetNodeId(), targetInput));
             }
         }
     }
 
     /**
-     * Перевірити чи всі залежності виконані
+     * Перевірити чи всі вхідні nodes виконані (для merge)
      */
-    private boolean areAllDependenciesExecuted(GraphNode node, Set<String> executed) {
-        return node.getPreviousNodes().stream()
-                .allMatch(prev -> executed.contains(prev.getNodeId()));
+    private boolean areAllIncomingExecuted(String nodeId, WorkflowExecutionGraph graph, WorkflowExecutionContext ctx) {
+        return graph.getIncoming(nodeId)
+                .stream()
+                .allMatch(edge -> ctx.isExecuted(edge.sourceNodeId()));
     }
 
     /**
-     * Виконати одну ноду
+     * Зібрати items для node з усіх вхідних ребер по reference
      */
-    private void executeNode(GraphNode graphNode, WorkflowExecutionContext executionContext) throws Exception {
+    private List<WorkflowItem> collectInputForNode(
+            String nodeId,
+            WorkflowExecutionGraph graph,
+            WorkflowExecutionContext ctx,
+            List<WorkflowItem> currentEdgeItems) {
 
-        String nodeId = graphNode.getNodeId();
-        log.debug("Executing node: {}", nodeId);
+        List<GraphEdge> incoming = graph.getIncoming(nodeId);
 
-        // Отримуємо executor для ноди
-        NodeExecutor executor = executorRegistry.getExecutor(graphNode.getDiscriminator());
+        // Проста node (одне вхідне) — передаємо напряму по reference
+        if (incoming.size() == 1) return currentEdgeItems;
 
-        // Підготовка input data з попередніх нод
-        List<Map<String, Object>> inputData = collectInputData(graphNode, executionContext);
-
-        // Створення execution context для ноди
-        ExecutionContext nodeContext = ExecutionContext.builder()
-                .nodeId(nodeId)
-                .workflowId(executionContext.getWorkflowId())
-                .inputData(inputData)
-                .parameters(NodeParametersConverter.toTypedParameters(graphNode.getParameters()))
-                .credentials(graphNode.getCredentials())
-                .build();
-
-        // Виконання ноди
-        NodeResult result = executor.execute(nodeContext);
-
-        // Збереження результату
-        executionContext.setNodeResult(nodeId, result);
-
-        if (!result.isSuccess()) {
-            log.error("Node {} failed: {}", nodeId, result.getError());
-            throw new NodeExecutionException("Node execution failed: " + nodeId, result);
+        // Merge node — збираємо всі виконані входи
+        List<WorkflowItem> merged = new ArrayList<>(currentEdgeItems);
+        for (GraphEdge inc : incoming) {
+            NodeResult prevResult = ctx.getNodeResult(inc.sourceNodeId());
+            if (prevResult != null) {
+                merged.addAll(prevResult.getOutputItems(inc.sourceOutputIndex()));
+            }
         }
-
-        log.debug("Node {} completed successfully", nodeId);
+        return merged;
     }
 
     /**
-     * Зібрати input data з попередніх нод
+     * Виконати одну node
      */
-    private List<Map<String, Object>> collectInputData(
+    private NodeResult executeNode(
             GraphNode node,
-            WorkflowExecutionContext executionContext) {
+            List<WorkflowItem> inputItems,
+            WorkflowExecutionContext ctx) {
 
-        if (node.getPreviousNodes().isEmpty()) {
-            // Для тригера використовуємо початкові дані
-            return Collections.singletonList(executionContext.getTriggerData());
-        }
+        NodeExecutor executor = executorRegistry.getExecutor(node.getDiscriminator());
 
-        // Збираємо дані з усіх попередніх нод
-        List<Map<String, Object>> allData = new ArrayList<>();
-
-        for (GraphNode prevNode : node.getPreviousNodes()) {
-            NodeResult prevResult = executionContext.getNodeResult(prevNode.getNodeId());
-            if (prevResult != null && prevResult.getData() != null) {
-                allData.addAll(prevResult.getData());
-            }
-        }
-
-        return allData;
-    }
-
-    /**
-     * Перезавантажити workflow (reload після змін)
-     */
-//    public void reloadWorkflow(Long workflowId) {
-//        log.info("Reloading workflow: {}", workflowId);
-//
-//        // Видаляємо з кешу
-//        graphCache.invalidate(workflowId);
-//
-//        // Якщо активний - перезапускаємо
-//        if (activeTriggers.containsKey(workflowId)) {
-//            deactivateWorkflow(workflowId);
-//            activateWorkflow(workflowId);
-//        }
-//    }
-
-    /**
-     * Отримати статус workflow
-     */
-    public WorkflowStatus getWorkflowStatus(Long workflowId) {
-        WorkflowTriggerManager manager = activeTriggers.get(workflowId);
-
-        return WorkflowStatus.builder()
-                .workflowId(workflowId)
-                .active(manager != null)
-                .triggerCount(manager != null ? manager.getTriggerCount() : 0)
+        ExecutionContext nodeContext = ExecutionContext.builder()
+                .nodeId(node.getNodeId())
+                .workflowId(ctx.getWorkflowId())
+                .inputItems(inputItems)   // по reference
+                .parameters(NodeParametersConverter.toTypedParameters(node.getParameters()))
+                .credentials(node.getCredentials())
                 .build();
+
+        return executor.execute(nodeContext);
     }
 
-    /**
-     * Cleanup при завершенні роботи
-     */
     @PreDestroy
     public void cleanup() {
-        log.info("Shutting down workflow execution service");
-
-        // Деактивуємо всі тригери
         new ArrayList<>(activeTriggers.keySet()).forEach(this::deactivateWorkflow);
-
-        // Завершуємо executor service
         executorService.shutdown();
         try {
             if (!executorService.awaitTermination(30, TimeUnit.SECONDS)) {

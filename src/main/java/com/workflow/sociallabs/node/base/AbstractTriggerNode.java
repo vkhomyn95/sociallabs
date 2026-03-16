@@ -1,14 +1,14 @@
 package com.workflow.sociallabs.node.base;
 
 import com.workflow.sociallabs.model.NodeDiscriminator;
+import com.workflow.sociallabs.node.core.ExecutionContext;
+import com.workflow.sociallabs.node.core.NodeResult;
+import com.workflow.sociallabs.node.core.WorkflowItem;
 import lombok.extern.slf4j.Slf4j;
 
-import com.workflow.sociallabs.node.core.*;
-import com.workflow.sociallabs.domain.enums.NodeType;
-import lombok.extern.slf4j.Slf4j;
-import java.time.Duration;
 import java.time.Instant;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Базовий клас для нод-тригерів
@@ -33,30 +33,19 @@ public abstract class AbstractTriggerNode extends AbstractNode {
     public abstract void deactivate(ExecutionContext context) throws Exception;
 
     /**
-     * Для тригерів execute викликається при отриманні події
+     * Тригер при execute просто збагачує перший вхідний item
+     * і передає його далі як один output item.
      */
     @Override
     protected NodeResult executeInternal(ExecutionContext context) throws Exception {
-        // Тригери зазвичай просто передають дані далі
-        List<Map<String, Object>> triggerData = context.getInputData();
+        Map<String, Object> json = context.getInputItems().isEmpty()
+                ? new HashMap<>()
+                : new HashMap<>(context.getInputItems().get(0).json());
 
-        if (triggerData == null || triggerData.isEmpty()) {
-            triggerData = Collections.singletonList(new HashMap<>());
-        }
+        // Додаємо службові поля тригера
+        json.put("_triggerTime", Instant.now().toString());
+        json.put("_triggerNode", context.getNodeId());
 
-        // Можна додати додаткові дані специфічні для тригера
-        Map<String, Object> enrichedData = enrichTriggerData(triggerData.get(0), context);
-
-        return NodeResult.success(enrichedData);
-    }
-
-    /**
-     * Збагатити дані від тригера додатковою інформацією
-     */
-    protected Map<String, Object> enrichTriggerData(Map<String, Object> data, ExecutionContext context) {
-        Map<String, Object> enriched = new HashMap<>(data);
-        enriched.put("triggerTime", Instant.now().toString());
-        enriched.put("triggerNode", context.getNodeId());
-        return enriched;
+        return NodeResult.success(WorkflowItem.single(json));
     }
 }

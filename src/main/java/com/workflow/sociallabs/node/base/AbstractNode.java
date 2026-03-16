@@ -8,8 +8,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * Абстрактний базовий клас для всіх нод
@@ -37,38 +35,27 @@ public abstract class AbstractNode implements NodeExecutor {
         Instant start = Instant.now();
 
         try {
-            log.info("Executing node {} (type: {})", context.getNodeId(), nodeType);
+            log.debug("Executing node {} ({})", context.getNodeId(), nodeType);
 
-            // Валідація credentials якщо потрібні
             if (requiresCredentials() && (context.getCredentials() == null || context.getCredentials().isEmpty())) {
-                throw new IllegalStateException("Node requires credentials but none provided");
+                throw new IllegalStateException("Node " + nodeType + " requires credentials but none provided");
             }
 
-            // Виконання основної логіки
             NodeResult result = executeInternal(context);
+            result.setExecutionTimeMs(Duration.between(start, Instant.now()).toMillis());
 
-            // Додавання метаданих до результату
-            long executionTime = Duration.between(start, Instant.now()).toMillis();
-            if (result.getMetadata() == null) {
-                result.setMetadata(new HashMap<>());
-            }
-            result.getMetadata().put("nodeType", nodeType);
-            result.getMetadata().put("nodeId", context.getNodeId());
-            result.setExecutionTimeMs(executionTime);
-
-            log.info("Node {} completed successfully in {}ms", context.getNodeId(), executionTime);
+            log.debug("Node {} completed in {}ms", context.getNodeId(), result.getExecutionTimeMs());
             return result;
 
         } catch (Exception e) {
-            long executionTime = Duration.between(start, Instant.now()).toMillis();
-            log.error("Node {} failed after {}ms: {}", context.getNodeId(), executionTime, e.getMessage(), e);
+            long ms = Duration.between(start, Instant.now()).toMillis();
+            log.error("Node {} failed after {}ms: {}", context.getNodeId(), ms, e.getMessage(), e);
 
             return NodeResult.builder()
                     .success(false)
                     .error(e.getMessage())
                     .errorStack(getStackTrace(e))
-                    .executionTimeMs(executionTime)
-                    .metadata(Map.of("nodeType", nodeType, "nodeId", context.getNodeId()))
+                    .executionTimeMs(ms)
                     .build();
         }
     }

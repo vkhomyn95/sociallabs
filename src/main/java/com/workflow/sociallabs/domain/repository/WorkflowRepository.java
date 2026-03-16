@@ -35,13 +35,13 @@ public interface WorkflowRepository extends JpaRepository<Workflow, Long> {
     /**
      * Fetch workflow з нодами та з'єднаннями в одному запиті
      */
-    @Query("""
-        SELECT DISTINCT w FROM Workflow w
-        LEFT JOIN FETCH w.nodes n
-        LEFT JOIN FETCH w.connections c
-        WHERE w.id = :id
-        """)
-    Optional<Workflow> findByIdWithDetails(@Param("id") Long id);
+//    @Query("""
+//        SELECT DISTINCT w FROM Workflow w
+//        LEFT JOIN FETCH w.nodes n
+//        LEFT JOIN FETCH w.connections c
+//        WHERE w.id = :workflowId
+//        """)
+//    Optional<Workflow> findById(@Param("workflowId") Long workflowId);
 
     /**
      * Знайти workflows створені після певної дати

@@ -43,12 +43,10 @@ public class NodeExecutorRegistry {
             }
 
             executorMap.put(discriminator, executor);
-            log.debug("Registered executor: {} -> {}",
-                    discriminator, executor.getClass().getSimpleName());
+            log.debug("Registered executor: {} -> {}", discriminator, executor.getClass().getSimpleName());
         }
 
-        log.info("NodeExecutorRegistry initialized with {} unique executor types",
-                executorMap.size());
+        log.info("NodeExecutorRegistry initialized with {} unique executor types", executorMap.size());
     }
 
     /**
@@ -62,8 +60,7 @@ public class NodeExecutorRegistry {
         NodeExecutor executor = executorMap.get(discriminator);
 
         if (executor == null) {
-            throw new IllegalArgumentException(
-                    "No executor registered for node type: " + discriminator
+            throw new IllegalArgumentException("No executor registered for node type: " + discriminator
             );
         }
 

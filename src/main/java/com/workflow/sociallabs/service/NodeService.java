@@ -2,7 +2,6 @@ package com.workflow.sociallabs.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.workflow.sociallabs.domain.entity.Credential;
-import com.workflow.sociallabs.domain.entity.Node;
 import com.workflow.sociallabs.domain.enums.NodeCategory;
 import com.workflow.sociallabs.domain.enums.NodeType;
 import com.workflow.sociallabs.domain.model.NodeParameters;
@@ -10,12 +9,10 @@ import com.workflow.sociallabs.domain.repository.CredentialRepository;
 import com.workflow.sociallabs.exception.ResourceNotFoundException;
 import com.workflow.sociallabs.exception.ValidationException;
 import com.workflow.sociallabs.model.NodeDiscriminator;
-import com.workflow.sociallabs.node.core.ExecutionContext;
-import com.workflow.sociallabs.node.core.NodeExecutor;
-import com.workflow.sociallabs.node.core.NodeRegistry;
-import com.workflow.sociallabs.node.core.NodeResult;
+import com.workflow.sociallabs.node.core.*;
 import com.workflow.sociallabs.node.parameters.TypedNodeParameters;
 import com.workflow.sociallabs.security.CredentialEncryption;
+import com.workflow.sociallabs.utility.MapSerializer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,8 +20,8 @@ import org.springframework.beans.factory.config.AutowireCapableBeanFactory;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
-import java.time.Instant;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Сервіс для роботи з Nodes
@@ -63,131 +60,69 @@ public class NodeService {
         return filteredNodes.subList(start, end);
     }
 
-
-
-    /**
-     * Валідація параметрів ноди
-     */
-    public Map<String, Object> validateNodeParameters(String nodeType, Map<String, Object> parameters) {
-//        NodeDefinition definition = nodeRegistry
-//                .getNodeDefinition(nodeType)
-//                .orElseThrow(() -> new ResourceNotFoundException("Node type not found: " + nodeType));
-//
-//        Map<String, Object> result = new HashMap<>();
-//        result.put("valid", true);
-//        List<String> errors = new ArrayList<>();
-//
-//        // Валідація кожного параметра
-//        for (NodeParameter<?> param : definition.getParameters()) {
-//            Object value = parameters.get(param.getName());
-//
-//            if (param.isRequired() && value == null) {
-//                errors.add(param.getName() + " is required");
-//                result.put("valid", false);
-//            }
-//
-//            // Додаткова валідація через validate метод
-//            // Simplified version
-//        }
-//
-//        result.put("errors", errors);
-//        return result;
-
-        return null;
+    public void validateNodeParameters(NodeParameters parameters, NodeDiscriminator discriminator) {
+        try {
+            TypedNodeParameters typed = objectMapper.convertValue(parameters.getValues(), TypedNodeParameters.class);
+            if (typed != null) {
+                typed.validate();
+                log.debug("Parameters validated for {}", discriminator);
+            }
+        } catch (IllegalArgumentException e) {
+            throw new ValidationException("Invalid parameters for node " + discriminator + ": " + e.getMessage());
+        } catch (Exception e) {
+            log.warn("Could not validate parameters for {}: {}", discriminator, e.getMessage());
+        }
     }
 
     /**
-     * Тестове виконання ноди
-     * Не зберігає нічого в базу, просто виконує логіку ноди
+     * Тестове виконання ноди з UI.
+     *
+     * Очікуваний формат testData:
+     * {
+     *   "parameters": { ... },
+     *   "credentialId": 1,
+     *   "inputItems": [              ← масив items
+     *     { "json": { "key": "val" } }
+     *   ]
+     * }
      */
-    public Map<String, Object> testNodeExecution(
-            NodeDiscriminator discriminator,
-            Map<String, Object> testData
-    ) {
+    public Map<String, Object> testNodeExecution(NodeDiscriminator discriminator, Map<String, Object> testData) {
+
         log.info("Testing node execution: {}", discriminator);
 
         try {
-            // Перевірити чи існує нода в registry
-            NodeRegistry.NodeMetadata metadata = nodeRegistry.getAllNodes().stream()
-                    .filter(n -> n.getDiscriminator() == discriminator)
-                    .findFirst()
-                    .orElseThrow(() -> new ResourceNotFoundException(
-                            "Node type not registered: " + discriminator
-                    ));
+            NodeRegistry.NodeMetadata metadata = resolveMetadata(discriminator);
 
-            // Отримати параметри з testData
+            // 1. Параметри
             @SuppressWarnings("unchecked")
-            Map<String, Object> parameters = (Map<String, Object>) testData.get("parameters");
-            if (parameters == null) {
-                parameters = new HashMap<>();
-            }
+            Map<String, Object> rawParams = (Map<String, Object>) testData.getOrDefault("parameters", Map.of());
 
-            // Отримати credentialId якщо є
-            Long credentialId = extractCredentialId(testData);
-
-            // Завантажити credentials якщо потрібні
-            Map<String, Object> credentials = new HashMap<>();
-            if (credentialId != null) {
-                Credential credential = credentialRepository.findById(credentialId)
-                        .orElseThrow(() -> new ResourceNotFoundException(
-                                "Credential not found: " + credentialId
-                        ));
-
-                // Перевірити тип credential
-                if (metadata.getSupportedCredential() != null &&
-                        credential.getType() != metadata.getSupportedCredential()) {
-                    throw new ValidationException(String.format(
-                            "Credential type mismatch. Expected: %s, got: %s",
-                            metadata.getSupportedCredential(),
-                            credential.getType()
-                    ));
-                }
-
-                // Дешифрувати credentials
-                credentials = decryptCredentials(credential);
-            }
-
-            // Перевірити чи credentials обов'язкові
-            if (credentials.isEmpty() && metadata.getSupportedCredential() != null) {
-                log.warn("Node {} requires credentials but none provided", discriminator);
-            }
-
-            // Конвертувати параметри в NodeParameters
-            NodeParameters nodeParameters = convertToNodeParameters(parameters, discriminator);
-
-            // Створити тимчасову Node entity для контексту
-            Node tempNode = createTempNode(discriminator, metadata, nodeParameters);
-
-            // Валідувати параметри через TypedNodeParameters
+            NodeParameters nodeParameters = convertToNodeParameters(rawParams, discriminator);
             TypedNodeParameters typedParams = validateAndConvertParameters(
-                    nodeParameters,
-                    discriminator
-            );
+                    nodeParameters, discriminator);
 
-            // Отримати вхідні дані для тесту
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> inputData = (List<Map<String, Object>>)
-                    testData.getOrDefault("inputData", Collections.singletonList(new HashMap<>()));
+            // 2. Credentials
+            Map<String, Object> credentials = resolveCredentials(testData, metadata, discriminator);
 
-            // Створити контекст виконання
+            // 3. Input items — підтримуємо два формати від UI:
+            //    а) новий: "inputItems": [ { "json": {...} }, ... ]
+            //    б) legacy: "inputData": [ {...}, {...} ]
+            List<WorkflowItem> inputItems = resolveInputItems(testData);
+
+            // 5. ExecutionContext
             ExecutionContext context = ExecutionContext.builder()
-                    .executionId(-1L) // Тестовий execution ID
-                    .workflowId(-1L)  // Тестовий workflow ID
+                    .executionId(-1L)
+                    .workflowId(-1L)
                     .nodeId(UUID.randomUUID().toString())
-                    .node(tempNode)
-                    .inputData(inputData)
+                    .inputItems(inputItems)        // List<WorkflowItem>
                     .credentials(credentials)
                     .parameters(typedParams)
-                    .workflowVariables(new HashMap<>())
-                    .workflowData(new HashMap<>())
-                    .startTime(Instant.now())
                     .build();
 
-            // Створити executor та виконати
+            // 6. Execute
             NodeExecutor executor = createExecutor(discriminator);
             NodeResult result = executor.execute(context);
 
-            // Форматувати результат
             return formatTestResult(result, discriminator);
 
         } catch (ValidationException | ResourceNotFoundException e) {
@@ -199,40 +134,13 @@ public class NodeService {
         }
     }
 
-    /**
-     * Створити executor для ноди
-     */
-    private NodeExecutor createExecutor(NodeDiscriminator discriminator) throws Exception {
-        Class<? extends NodeExecutor> executorClass = nodeRegistry
-                .getExecutorClass(discriminator)
-                .orElseThrow(() -> new IllegalStateException(
-                        "No executor found for node: " + discriminator
-                ));
+    public NodeParameters convertToNodeParameters(Map<String, Object> raw, NodeDiscriminator discriminator) {
 
-        NodeExecutor executor = executorClass
-                .getDeclaredConstructor()
-                .newInstance();
-
-        // 🔥 ОЦЕ КЛЮЧОВЕ
-        beanFactory.autowireBean(executor);
-
-        return executor;
-    }
-
-    /**
-     * Конвертувати Map параметрів в NodeParameters
-     */
-    private NodeParameters convertToNodeParameters(
-            Map<String, Object> rawParameters,
-            NodeDiscriminator discriminator
-    ) {
-        if (rawParameters == null || rawParameters.isEmpty()) {
+        if (raw == null || raw.isEmpty()) {
             return NodeParameters.withType(discriminator.value, new HashMap<>());
         }
-
-        Map<String, Object> params = new HashMap<>(rawParameters);
+        Map<String, Object> params = new HashMap<>(raw);
         params.put("@type", discriminator.value);
-
         return NodeParameters.withType(discriminator.value, params);
     }
 
@@ -266,74 +174,136 @@ public class NodeService {
         }
     }
 
-    /**
-     * Створити тимчасову Node entity для тесту
-     */
-    private Node createTempNode(
-            NodeDiscriminator discriminator,
+    private NodeRegistry.NodeMetadata resolveMetadata(NodeDiscriminator discriminator) {
+        return nodeRegistry.getAllNodes().stream()
+                .filter(n -> n.getDiscriminator() == discriminator)
+                .findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException("Node type not registered: " + discriminator));
+    }
+
+    private Map<String, Object> resolveCredentials(
+            Map<String, Object> testData,
             NodeRegistry.NodeMetadata metadata,
-            NodeParameters parameters
-    ) {
-        return Node.builder()
-                .nodeId(UUID.randomUUID().toString())
-                .type(metadata.getType())
-                .discriminator(discriminator)
-                .name("Test Node - " + discriminator.name())
-                .parameters(parameters)
-                .disabled(false)
-                .build();
+            NodeDiscriminator discriminator) {
+
+        Long credentialId = extractCredentialId(testData);
+
+        if (credentialId == null) {
+            if (metadata.getSupportedCredential() != null) {
+                log.warn("Node {} requires credential type {} but none provided", discriminator, metadata.getSupportedCredential());
+            }
+            return new HashMap<>();
+        }
+
+        Credential credential = credentialRepository.findById(credentialId)
+                .orElseThrow(() -> new ResourceNotFoundException("Credential not found: " + credentialId));
+
+        if (metadata.getSupportedCredential() != null && credential.getType() != metadata.getSupportedCredential()) {
+            throw new ValidationException(String.format("Credential type mismatch. Expected: %s, got: %s", metadata.getSupportedCredential(), credential.getType()));
+        }
+
+        return decryptCredentials(credential);
     }
 
     /**
-     * Дешифрувати credentials
+     * Підтримує два формати вхідних даних від UI:
+     *
+     * Новий (n8n-стиль):
+     *   "inputItems": [ { "json": { "key": "val" }, "binary": {} }, ... ]
+     *
+     * Legacy (старий формат):
+     *   "inputData": [ { "key": "val" }, ... ]
+     *
+     * Якщо нічого не передано — один порожній item (тригер-нода не потребує вхідних даних).
      */
+    @SuppressWarnings("unchecked")
+    private List<WorkflowItem> resolveInputItems(Map<String, Object> testData) {
+
+        // Новий формат
+        if (testData.containsKey("inputItems")) {
+            List<Map<String, Object>> raw = (List<Map<String, Object>>) testData.get("inputItems");
+
+            return raw.stream()
+                    .map(entry -> {
+                        Map<String, Object> json = (Map<String, Object>) entry.getOrDefault("json", Map.of());
+                        Map<String, Object> binary = (Map<String, Object>) entry.getOrDefault("binary", Map.of());
+                        return new WorkflowItem(json, binary);
+                    })
+                    .collect(Collectors.toList());
+        }
+
+        // Legacy формат
+        if (testData.containsKey("inputData")) {
+            List<Map<String, Object>> raw = (List<Map<String, Object>>) testData.get("inputData");
+            return raw.stream()
+                    .map(WorkflowItem::of)
+                    .collect(Collectors.toList());
+        }
+
+        // Default — один порожній item
+        return WorkflowItem.single(new HashMap<>());
+    }
+
+    private NodeExecutor createExecutor(NodeDiscriminator discriminator) throws Exception {
+        Class<? extends NodeExecutor> cls = nodeRegistry
+                .getExecutorClass(discriminator)
+                .orElseThrow(() -> new IllegalStateException(
+                        "No executor found for node: " + discriminator));
+
+        NodeExecutor executor = cls.getDeclaredConstructor().newInstance();
+        beanFactory.autowireBean(executor); // ін'єктуємо Spring-залежності
+        return executor;
+    }
+
     private Map<String, Object> decryptCredentials(Credential credential) {
         try {
-            String decryptedData = encryption.decrypt(credential.getEncryptedData());
-            return objectMapper.readValue(decryptedData, Map.class);
+            String decrypted = encryption.decrypt(credential.getEncryptedData());
+            return MapSerializer.deserializeFromJson(decrypted);
         } catch (Exception e) {
             log.error("Failed to decrypt credentials: {}", e.getMessage());
             throw new ValidationException("Failed to decrypt credentials: " + e.getMessage());
         }
     }
 
-    /**
-     * Витягнути credentialId з testData
-     */
     private Long extractCredentialId(Map<String, Object> testData) {
-        Object credId = testData.get("credentialId");
-        if (credId == null) {
-            return null;
+        Object raw = testData.get("credentialId");
+        if (raw instanceof Number n)   {
+            return n.longValue();
         }
-
-        if (credId instanceof Number) {
-            return ((Number) credId).longValue();
-        }
-
-        if (credId instanceof String) {
+        if (raw instanceof String s) {
             try {
-                return Long.parseLong((String) credId);
-            } catch (NumberFormatException e) {
-                log.warn("Invalid credentialId format: {}", credId);
-                return null;
-            }
+                return Long.parseLong(s);
+            } catch (NumberFormatException ignored) {}
         }
-
         return null;
     }
 
     /**
-     * Форматувати результат тесту
+     * Форматує результат для відповіді UI.
+     * outputs[0] = main port items (або true branch для IF).
+     * outputs[1] = false branch для IF, тощо.
      */
     private Map<String, Object> formatTestResult(NodeResult result, NodeDiscriminator discriminator) {
-        Map<String, Object> response = new HashMap<>();
+
+        Map<String, Object> response = new LinkedHashMap<>();
         response.put("success", result.isSuccess());
         response.put("nodeType", discriminator.name());
         response.put("executionTimeMs", result.getExecutionTimeMs());
 
         if (result.isSuccess()) {
-            response.put("data", result.getData());
-            response.put("metadata", result.getMetadata());
+            // Конвертуємо WorkflowItem → plain Map для зручності UI
+            if (result.getOutputs() != null) {
+                List<List<Map<String, Object>>> outputsForUi = result.getOutputs().stream()
+                        .map(port -> port.stream()
+                                .map(WorkflowItem::json)
+                                .collect(Collectors.toList()))
+                        .collect(Collectors.toList());
+
+                response.put("outputs", outputsForUi);
+
+                // Shortcut: перший порт як "data" для простих нод
+                response.put("data", outputsForUi.isEmpty() ? List.of() : outputsForUi.get(0));
+            }
             response.put("message", "Node executed successfully");
         } else {
             response.put("error", result.getError());
@@ -344,15 +314,12 @@ public class NodeService {
         return response;
     }
 
-    /**
-     * Створити результат з помилкою
-     */
     private Map<String, Object> createErrorResult(String message, String errorType) {
-        Map<String, Object> response = new HashMap<>();
-        response.put("success", false);
-        response.put("error", message);
-        response.put("errorType", errorType);
-        response.put("message", "Test execution failed");
-        return response;
+        return Map.of(
+                "success",   false,
+                "error",     message,
+                "errorType", errorType,
+                "message",   "Test execution failed"
+        );
     }
 }

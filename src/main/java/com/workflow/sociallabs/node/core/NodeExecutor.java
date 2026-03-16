@@ -11,7 +11,7 @@ public interface NodeExecutor {
     /**
      * Виконати node з заданим контекстом
      */
-    NodeResult execute(ExecutionContext context) throws Exception;
+    NodeResult execute(ExecutionContext context);
 
     /**
      * Отримати тип node

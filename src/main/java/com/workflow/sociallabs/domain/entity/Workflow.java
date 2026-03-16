@@ -7,7 +7,9 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 
 @Entity
@@ -38,11 +40,11 @@ public class Workflow {
 
     @OneToMany(mappedBy = "workflow", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
-    private List<Node> nodes = new ArrayList<>();
+    private Set<Node> nodes = new LinkedHashSet<>();
 
     @OneToMany(mappedBy = "workflow", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
-    private List<Connection> connections = new ArrayList<>();
+    private Set<Connection> connections = new LinkedHashSet<>();
 
     @OneToMany(mappedBy = "workflow", cascade = CascadeType.ALL)
     @OrderBy("startedAt DESC")

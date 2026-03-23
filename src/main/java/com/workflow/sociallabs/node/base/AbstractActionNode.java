@@ -7,6 +7,7 @@ import com.workflow.sociallabs.node.core.WorkflowItem;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -51,7 +52,7 @@ public abstract class AbstractActionNode extends AbstractNode {
                 log.warn("Node {}: failed to process item, continuing: {}", context.getNodeId(), e.getMessage());
 
                 // Додаємо item з позначкою помилки, не губимо дані
-                Map<String, Object> errorJson = new java.util.HashMap<>(item.json());
+                Map<String, Object> errorJson = new HashMap<>(item.json());
                 errorJson.put("_error", e.getMessage());
                 outputItems.add(new WorkflowItem(errorJson, item.binary()));
             }

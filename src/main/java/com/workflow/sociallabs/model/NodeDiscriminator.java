@@ -10,7 +10,12 @@ public enum NodeDiscriminator {
 
     // Logics
     IF_LOGIC(Values.IF_LOGIC),
-    SWITCH_LOGIC(Values.SWITCH_LOGIC);
+    SWITCH_LOGIC(Values.SWITCH_LOGIC),
+
+    // AI Agent
+    AI_AGENT(Values.AI_AGENT),
+    AI_CHAT(Values.AI_CHAT),
+    AI_STRUCTURED_OUTPUT(Values.AI_STRUCTURED_OUTPUT);
 
     // (Опціонально) Зберігаємо значення, якщо воно вам треба в логіці
     public final String value;
@@ -31,5 +36,10 @@ public enum NodeDiscriminator {
         // Logics
         public static final String IF_LOGIC = "if_logic";
         public static final String SWITCH_LOGIC = "switch_logic";
+
+        // AI Agent
+        public static final String AI_AGENT = "ai_agent";
+        public static final String AI_CHAT = "ai_chat";
+        public static final String AI_STRUCTURED_OUTPUT = "ai_structured_output";
     }
 }

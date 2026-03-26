@@ -52,7 +52,7 @@ public sealed interface AgentMessage permits
             @NonNull String toolCallId,
             @NonNull String toolName,
             @NonNull ToolResult result
-    ) implements AgentMessage {
+            ) implements AgentMessage {
         public Role role() {
             return Role.TOOL;
         }

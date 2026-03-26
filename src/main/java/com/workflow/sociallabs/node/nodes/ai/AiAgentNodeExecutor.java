@@ -67,7 +67,7 @@ public class AiAgentNodeExecutor extends AbstractNode {
                 .workflowId(context.getWorkflowId())
                 .agentNodeId(context.getNodeId())
                 .executionCorrelationId(UUID.randomUUID().toString())
-                .sharedCredentials(context.getCredentials() != null ? context.getCredentials() : Map.of())
+                .credentials(context.getCredentials())
                 .limits(params.getLimits())
                 .clock(clock)
                 .build();

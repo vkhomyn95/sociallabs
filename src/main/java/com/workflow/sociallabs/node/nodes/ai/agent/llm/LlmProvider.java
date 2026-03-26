@@ -14,10 +14,10 @@ public interface LlmProvider<REQ, RESP> {
     boolean supports(ModelId modelId);
 
     /** Основний виклик — повертає строго-типізований AgentResponse */
-    AgentResponse complete(AgentRequest request);
+    AgentResponse complete(AgentRequest request, String apiKey);
 
     /** Стрімінг (опційно) */
-    default Flux<AgentResponseChunk> stream(AgentRequest request) {
-        throw new UnsupportedOperationException("Streaming not supported by " + getProviderType());
-    }
+//    default Flux<AgentResponseChunk> stream(AgentRequest request) {
+//        throw new UnsupportedOperationException("Streaming not supported by " + getProviderType());
+//    }
 }

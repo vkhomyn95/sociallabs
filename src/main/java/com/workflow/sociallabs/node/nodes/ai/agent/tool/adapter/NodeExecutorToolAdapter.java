@@ -54,7 +54,7 @@ public abstract class NodeExecutorToolAdapter
                 .workflowId(context.getWorkflowId())
                 .inputItems(WorkflowItem.single(inputToJson(input)))
                 .parameters(nodeParams)
-                .credentials(context.getSharedCredentials())
+                .credentials(context.getCredentials())
                 .build();
 
         // 4. Делегуємо в існуючий executor — НУЛЬ дублювання

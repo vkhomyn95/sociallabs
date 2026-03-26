@@ -10,10 +10,17 @@ import java.util.List;
 @Value   // Lombok immutable
 @Builder
 public class AgentRequest {
-    @NonNull ModelId modelId;
-    @NonNull String systemPrompt;
-    @NonNull List<AgentMessage> messages;
-    @NonNull List<ToolDefinition> tools;
+
+    @NonNull
+    ModelId modelId;
+    @NonNull
+    String apiKey;
+    @NonNull
+    String systemPrompt;
+    @NonNull
+    List<AgentMessage> messages;
+    @NonNull
+    List<ToolDefinition> tools;
     @Builder.Default
     double temperature = 0.7;
     @Builder.Default

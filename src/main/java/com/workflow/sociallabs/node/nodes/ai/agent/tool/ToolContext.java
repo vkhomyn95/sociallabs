@@ -15,12 +15,12 @@ public class ToolContext {
     @NonNull Long              workflowId;
     @NonNull String            agentNodeId;
     @NonNull String            executionCorrelationId;  // tracing
-    @NonNull Map<String, Object> sharedCredentials;      // з workflow
+    @NonNull Map<String, Object> credentials;      // з workflow
     @NonNull AgentLimits limits;
     @NonNull Clock clock;
 
     public <T> Optional<T> getCredential(String key, Class<T> type) {
-        Object val = sharedCredentials.get(key);
+        Object val = credentials.get(key);
         return Optional.ofNullable(val).filter(type::isInstance).map(type::cast);
     }
 }

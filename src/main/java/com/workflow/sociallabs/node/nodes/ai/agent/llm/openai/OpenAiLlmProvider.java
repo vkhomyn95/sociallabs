@@ -1,9 +1,10 @@
 package com.workflow.sociallabs.node.nodes.ai.agent.llm.openai;
 
-import com.workflow.sociallabs.node.nodes.ai.agent.llm.AgentRequest;
-import com.workflow.sociallabs.node.nodes.ai.agent.llm.AgentResponse;
-import com.workflow.sociallabs.node.nodes.ai.agent.llm.ModelId;
-import com.workflow.sociallabs.node.nodes.ai.agent.llm.ProviderType;
+import com.openai.client.OpenAIClient;
+import com.openai.client.okhttp.OpenAIOkHttpClient;
+import com.openai.models.chat.completions.ChatCompletion;
+import com.openai.models.chat.completions.ChatCompletionCreateParams;
+import com.workflow.sociallabs.node.nodes.ai.agent.llm.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -13,9 +14,9 @@ import java.util.Set;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public final class OpenAiLlmProvider implements LlmProvider<CreateChatCompletionRequest, ChatCompletion> {
+public final class OpenAiLlmProvider implements LlmProvider<ChatCompletionCreateParams, ChatCompletion> {
 
-    private final OpenAIClient client;    // OpenAI Java SDK (официальний)
+    private final LlmClientCache cache;
     private final OpenAiMessageMapper mapper;
 
     private static final Set<String> SUPPORTED_PREFIXES = Set.of("gpt-4", "gpt-3.5", "o1", "o3");
@@ -30,16 +31,16 @@ public final class OpenAiLlmProvider implements LlmProvider<CreateChatCompletion
     }
 
     @Override
-    public AgentResponse complete(AgentRequest request) {
-        CreateChatCompletionRequest sdkRequest = mapper.toSdkRequest(request);
+    public AgentResponse complete(AgentRequest request, String apiKey) {
+        OpenAIClient client = cache.getOrCreate(
+                ProviderType.OPENAI,
+                apiKey,
+                credential -> OpenAIOkHttpClient.builder().apiKey(credential).build(),
+                OpenAIClient.class
+        );
 
-        log.debug("OpenAI request model={} tools={} messages={}",
-                request.getModelId().value(),
-                request.getTools().size(),
-                request.getMessages().size());
-
-        ChatCompletion completion = client.chat().completions().create(sdkRequest);
-
+        ChatCompletionCreateParams params = mapper.toSdkRequest(request);
+        ChatCompletion completion = client.chat().completions().create(params);
         return mapper.fromCompletion(completion);
     }
 }

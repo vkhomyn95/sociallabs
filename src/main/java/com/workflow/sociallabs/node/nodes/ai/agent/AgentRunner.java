@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Component
 @RequiredArgsConstructor
@@ -27,12 +28,19 @@ public final class AgentRunner {
     private final AgentMemoryManager memoryManager;
 //    private final MeterRegistry meterRegistry;
 
+    private static final String API_KEY = "apiKey";
+
     public AgentResult run(
             @NonNull AgentState initialState,
             @NonNull ToolContext context,
             @NonNull MemoryConfig memoryConfig,
             @NonNull Map<String, Object> itemJson
     ) {
+        Optional<String> apiKey = context.getCredential(API_KEY, String.class);
+        if (apiKey.isEmpty()) {
+            return failure(initialState, "Api key is missed for agent node", AgentResult.FailureType.LLM_ERROR);
+        }
+
         // 1. Завантажуємо history
         List<AgentMessage> history = memoryManager.loadHistory(
                 memoryConfig,
@@ -80,7 +88,7 @@ public final class AgentRunner {
             AgentResponse response;
 
             try {
-                response = provider.complete(request);
+                response = provider.complete(request, apiKey.get());
             } catch (LlmProviderException e) {
                 log.error("LLM call failed: {}", e.getMessage(), e);
                 return failure(state, "LLM error: " + e.getMessage(), AgentResult.FailureType.LLM_ERROR);

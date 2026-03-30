@@ -4,5 +4,7 @@ public enum NodeCategory {
 
     COMMUNICATION,
 
-    LOGIC
+    LOGIC,
+
+    CORE,
 }

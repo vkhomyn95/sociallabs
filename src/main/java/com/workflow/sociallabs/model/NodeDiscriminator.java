@@ -12,6 +12,9 @@ public enum NodeDiscriminator {
     IF_LOGIC(Values.IF_LOGIC),
     SWITCH_LOGIC(Values.SWITCH_LOGIC),
 
+    // Other
+    HTTP_REQUEST(Values.HTTP_REQUEST),
+
     // AI Agent
     AI_AGENT(Values.AI_AGENT),
     AI_CHAT(Values.AI_CHAT),
@@ -36,6 +39,9 @@ public enum NodeDiscriminator {
         // Logics
         public static final String IF_LOGIC = "if_logic";
         public static final String SWITCH_LOGIC = "switch_logic";
+
+        // Other
+        public static final String HTTP_REQUEST = "http_request";
 
         // AI Agent
         public static final String AI_AGENT = "ai_agent";

@@ -73,7 +73,7 @@ public class HttpRequestParameters implements TypedNodeParameters {
     private String headersJson;
 
     @Builder.Default
-    private Boolean lowercaseHeaders = true;
+    private boolean lowercaseHeaders = true;
 
     // ── Body ───────────────────────────────────────────────────────
     @Builder.Default

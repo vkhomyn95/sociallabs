@@ -81,7 +81,7 @@ public class HttpRequestBuilder {
         );
 
         for (KeyValue kv : headers) {
-            String name = Boolean.TRUE.equals(params.getLowercaseHeaders())
+            String name = Boolean.TRUE.equals(params.isLowercaseHeaders())
                     ? kv.name().toLowerCase()
                     : kv.name();
             spec = spec.header(name, kv.value());

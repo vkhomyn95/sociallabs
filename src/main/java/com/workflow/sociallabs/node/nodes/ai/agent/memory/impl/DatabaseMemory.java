@@ -20,7 +20,7 @@ import java.util.Objects;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public final class DatabaseMemory implements AgentMemory {
+public class DatabaseMemory implements AgentMemory {
 
     private final AgentMemoryRepository repository;
     private final ObjectMapper objectMapper;

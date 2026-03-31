@@ -10,6 +10,7 @@ package com.workflow.sociallabs.domain.enums;
  */
 public enum ConnectionType {
     MAIN,
+    AI_AGENT,
     AI_TOOL,
     AI_MEMORY,
     AI_OUTPUT

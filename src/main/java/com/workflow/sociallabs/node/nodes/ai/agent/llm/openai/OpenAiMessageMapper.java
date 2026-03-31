@@ -6,19 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.openai.core.JsonValue;
 import com.openai.models.FunctionDefinition;
 import com.openai.models.FunctionParameters;
-import com.openai.models.chat.completions.ChatCompletion;
-import com.openai.models.chat.completions.ChatCompletionAssistantMessageParam;
-import com.openai.models.chat.completions.ChatCompletionFunctionTool;
-import com.openai.models.chat.completions.ChatCompletionMessage;
-import com.openai.models.chat.completions.ChatCompletionMessageFunctionToolCall;
-import com.openai.models.chat.completions.ChatCompletionMessageParam;
-import com.openai.models.chat.completions.ChatCompletionMessageToolCall;
-import com.openai.models.chat.completions.ChatCompletionSystemMessageParam;
-import com.openai.models.chat.completions.ChatCompletionTool;
-import com.openai.models.chat.completions.ChatCompletionToolChoiceOption;
-import com.openai.models.chat.completions.ChatCompletionToolMessageParam;
-import com.openai.models.chat.completions.ChatCompletionUserMessageParam;
-import com.openai.models.chat.completions.ChatCompletionCreateParams;
+import com.openai.models.chat.completions.*;
 import com.openai.models.chat.completions.ChatCompletionToolChoiceOption.Auto;
 import com.workflow.sociallabs.node.nodes.ai.agent.llm.AgentMessage;
 import com.workflow.sociallabs.node.nodes.ai.agent.llm.AgentRequest;
@@ -31,8 +19,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
-import java.util.List;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 @Component
@@ -220,10 +208,18 @@ public final class OpenAiMessageMapper {
     }
 
     private AgentResponse.StopReason mapFinishReason(ChatCompletion.Choice.FinishReason reason) {
-        return switch (reason) {
-            case ChatCompletion.Choice.FinishReason.TOOL_CALLS -> AgentResponse.StopReason.TOOL_USE;
-            case ChatCompletion.Choice.FinishReason.LENGTH     -> AgentResponse.StopReason.MAX_TOKENS;
-            default         -> AgentResponse.StopReason.END_TURN;
-        };
+        if (reason == null) {
+            return AgentResponse.StopReason.END_TURN;
+        }
+
+        if (reason.equals(ChatCompletion.Choice.FinishReason.TOOL_CALLS)) {
+            return AgentResponse.StopReason.TOOL_USE;
+        }
+
+        if (reason.equals(ChatCompletion.Choice.FinishReason.LENGTH)) {
+            return AgentResponse.StopReason.MAX_TOKENS;
+        }
+
+        return AgentResponse.StopReason.END_TURN;
     }
 }

@@ -272,7 +272,7 @@ public class TelegramClientService {
     /**
      * Відновити сесію аутентифікації
      */
-    @PostConstruct
+//    @PostConstruct
     public void restoreAuthSession() {
         log.info("Initializing existing Telegram client sessions from database...");
 

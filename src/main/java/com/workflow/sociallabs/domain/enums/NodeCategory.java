@@ -7,4 +7,6 @@ public enum NodeCategory {
     LOGIC,
 
     CORE,
+
+    AI
 }

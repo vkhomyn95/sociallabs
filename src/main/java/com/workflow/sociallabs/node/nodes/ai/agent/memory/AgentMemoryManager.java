@@ -16,7 +16,7 @@ import java.util.stream.Collectors;
 public final class AgentMemoryManager {
 
     // Spring inject всі реалізації — вибираємо по типу
-    private final Map<AgentMemory.MemoryType, AgentMemory> memoryMap;
+    private Map<AgentMemory.MemoryType, AgentMemory> memoryMap;
 
     public AgentMemoryManager(List<AgentMemory> memories) {
         this.memoryMap = memories.stream()

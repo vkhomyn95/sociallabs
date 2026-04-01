@@ -3,6 +3,7 @@ package com.workflow.sociallabs.node.nodes.http;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.workflow.sociallabs.node.nodes.http.parameters.HttpRequestParameters;
 import com.workflow.sociallabs.node.nodes.http.parameters.HttpRequestParameters.*;
+import com.workflow.sociallabs.service.ExpressionEvaluator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -14,6 +15,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -34,56 +36,62 @@ public class HttpRequestBuilder {
      * @param params  параметри ноди
      * @param urlOverride якщо пагінація передала свій URL
      */
-    public URI buildUri(HttpRequestParameters params, String urlOverride) {
-        String baseUrl = urlOverride != null ? urlOverride : params.getUrl();
-        UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(baseUrl);
+    public URI buildUri(
+            HttpRequestParameters params,
+            String urlOverride,
+            Map<String, Object> inputItem
+    ) {
+        String rawUrl = urlOverride != null ? urlOverride : params.getUrl();
+        String resolvedUrl = resolveStr(rawUrl, inputItem);
+
+        UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(resolvedUrl);
 
         if (Boolean.TRUE.equals(params.getSendQueryParams())) {
-            List<KeyValue> queryParams = resolveKeyValues(
+            for (KeyValue kv : resolveKeyValues(
                     params.getQueryParamsInputMode(),
                     params.getQueryParams(),
-                    params.getQueryParamsJson()
-            );
-            for (KeyValue kv : queryParams) {
+                    params.getQueryParamsJson(),
+                    inputItem)) {
                 builder.queryParam(kv.name(), kv.value());
             }
         }
 
-        // Query auth — append token to URL
+        // Query auth
         if (params.getAuthType() == HttpAuthType.QUERY
                 && params.getQueryAuthName() != null) {
-            builder.queryParam(params.getQueryAuthName(), params.getQueryAuthValue());
+            builder.queryParam(
+                    params.getQueryAuthName(),
+                    resolveStr(params.getQueryAuthValue(), inputItem)
+            );
         }
 
         return builder.build(true).toUri();
     }
 
-    /**
-     * Повернути метод Spring HTTP для params.getMethod()
-     */
     public org.springframework.http.HttpMethod resolveMethod(HttpRequestParameters params) {
         return org.springframework.http.HttpMethod.valueOf(params.getMethod().name());
     }
 
     /**
-     * Додати заголовки до spec.
+     * Застосувати заголовки до spec.
+     * Підтримує lowercaseHeaders і резолвить {{$json.*}} у значеннях.
      */
     public WebClient.RequestHeadersSpec<?> applyHeaders(
             WebClient.RequestHeadersSpec<?> spec,
-            HttpRequestParameters params
+            HttpRequestParameters params,
+            Map<String, Object> inputItem
     ) {
         if (!Boolean.TRUE.equals(params.getSendHeaders())) return spec;
 
-        List<KeyValue> headers = resolveKeyValues(
+        // FIX: використовуємо getLowercaseHeaders() з параметрів
+        boolean lowercase = Boolean.TRUE.equals(params.isLowercaseHeaders());
+
+        for (KeyValue kv : resolveKeyValues(
                 params.getHeadersInputMode(),
                 params.getHeaders(),
-                params.getHeadersJson()
-        );
-
-        for (KeyValue kv : headers) {
-            String name = Boolean.TRUE.equals(params.isLowercaseHeaders())
-                    ? kv.name().toLowerCase()
-                    : kv.name();
+                params.getHeadersJson(),
+                inputItem)) {
+            String name = lowercase ? kv.name().toLowerCase() : kv.name();
             spec = spec.header(name, kv.value());
         }
         return spec;
@@ -102,14 +110,17 @@ public class HttpRequestBuilder {
         if (!Boolean.TRUE.equals(params.getSendBody())) return bodySpec;
 
         return switch (params.getBodyContentType()) {
-            case JSON -> applyJsonBody(bodySpec, params);
-            case FORM_URL_ENCODED -> applyFormUrlEncoded(bodySpec, params);
-            case FORM_DATA -> applyFormData(bodySpec, params, inputItem);
-            case RAW -> bodySpec
-                    .contentType(MediaType.parseMediaType(params.getRawContentType()))
-                    .bodyValue(params.getRawBody() != null ? params.getRawBody() : "");
+            case JSON             -> applyJsonBody(bodySpec, params, inputItem);
+            case FORM_URL_ENCODED -> applyFormUrlEncoded(bodySpec, params, inputItem);
+            case FORM_DATA        -> applyFormData(bodySpec, params, inputItem);
+            case RAW -> {
+                String ct   = resolveStr(params.getRawContentType(), inputItem);
+                String body = resolveStr(params.getRawBody(), inputItem);
+                yield bodySpec
+                        .contentType(MediaType.parseMediaType(ct != null ? ct : "text/plain"))
+                        .bodyValue(body != null ? body : "");
+            }
             case BINARY -> {
-                // Бінарне тіло з inputItem
                 String fieldName = params.getBinaryFieldName();
                 Object binaryData = fieldName != null ? inputItem.get(fieldName) : null;
                 if (binaryData instanceof byte[] bytes) {
@@ -126,26 +137,31 @@ public class HttpRequestBuilder {
 
     private WebClient.RequestHeadersSpec<?> applyJsonBody(
             WebClient.RequestBodySpec spec,
-            HttpRequestParameters params
+            HttpRequestParameters params,
+            Map<String, Object> inputItem
     ) {
         if (params.getBodyInputMode() == InputMode.JSON) {
-            String json = params.getBodyJson();
+            // Весь JSON може бути виразом {{$json.payload}}
+            String json = resolveStr(params.getBodyJson(), inputItem);
             return spec.contentType(MediaType.APPLICATION_JSON)
                     .bodyValue(json != null ? json : "{}");
         }
 
-        List<KeyValue> kvs = params.getBodyParams();
-        if (kvs == null || kvs.isEmpty()) {
+        List<KeyValue> kvs = resolveKeyValues(
+                params.getBodyInputMode(),
+                params.getBodyParams(),
+                params.getBodyJson(),
+                inputItem
+        );
+        if (kvs.isEmpty()) {
             return spec.contentType(MediaType.APPLICATION_JSON).bodyValue("{}");
         }
 
-        // Build map → serialize
-        Map<String, String> map = new java.util.LinkedHashMap<>();
+        Map<String, String> map = new LinkedHashMap<>();
         kvs.forEach(kv -> map.put(kv.name(), kv.value()));
-
         try {
-            String json = objectMapper.writeValueAsString(map);
-            return spec.contentType(MediaType.APPLICATION_JSON).bodyValue(json);
+            return spec.contentType(MediaType.APPLICATION_JSON)
+                    .bodyValue(objectMapper.writeValueAsString(map));
         } catch (Exception e) {
             log.warn("Failed to serialize body params to JSON", e);
             return spec;
@@ -154,40 +170,41 @@ public class HttpRequestBuilder {
 
     private WebClient.RequestHeadersSpec<?> applyFormUrlEncoded(
             WebClient.RequestBodySpec spec,
-            HttpRequestParameters params
+            HttpRequestParameters params,
+            Map<String, Object> inputItem
     ) {
-        if (params.getBodyInputMode() == InputMode.JSON && params.getFormSingleField() != null) {
-            // single field format: "k1=v1&k2=v2"
+        if (params.getBodyInputMode() == InputMode.JSON
+                && params.getFormSingleField() != null) {
+            String resolved = resolveStr(params.getFormSingleField(), inputItem);
             return spec.contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                    .bodyValue(params.getFormSingleField());
+                    .bodyValue(resolved != null ? resolved : "");
         }
 
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
-        List<KeyValue> kvs = resolveKeyValues(
+        resolveKeyValues(
                 params.getBodyInputMode(),
                 params.getBodyParams(),
-                params.getBodyJson()
-        );
-        kvs.forEach(kv -> form.add(kv.name(), kv.value()));
+                params.getBodyJson(),
+                inputItem
+        ).forEach(kv -> form.add(kv.name(), kv.value()));
+
         return spec.contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(BodyInserters.fromFormData(form));
     }
 
-    @SuppressWarnings("rawtypes")
     private WebClient.RequestHeadersSpec<?> applyFormData(
             WebClient.RequestBodySpec spec,
             HttpRequestParameters params,
             Map<String, Object> inputItem
     ) {
         MultiValueMap<String, Object> formData = new LinkedMultiValueMap<>();
-        List<KeyValue> kvs = resolveKeyValues(
+        resolveKeyValues(
                 params.getBodyInputMode(),
                 params.getBodyParams(),
-                params.getBodyJson()
-        );
-        kvs.forEach(kv -> formData.add(kv.name(), kv.value()));
+                params.getBodyJson(),
+                inputItem
+        ).forEach(kv -> formData.add(kv.name(), kv.value()));
 
-        // Attach binary if binaryFieldName provided
         if (params.getBinaryFieldName() != null) {
             Object bin = inputItem.get(params.getBinaryFieldName());
             if (bin instanceof byte[] bytes) {
@@ -200,25 +217,51 @@ public class HttpRequestBuilder {
                 .body(BodyInserters.fromMultipartData(formData));
     }
 
+    // ── Helpers ────────────────────────────────────────────────────
+
     /**
-     * Уніфікований helper: Key-Value list або JSON string → List<KeyValue>
+     * Резолвить один рядок через ExpressionEvaluator.
+     * Якщо рядок null або не містить "{{" — повертає як є (без зайвої роботи).
+     */
+    private String resolveStr(String raw, Map<String, Object> data) {
+        if (raw == null) return null;
+        if (!raw.contains("{{")) return raw;   // швидкий fast-path
+        Object resolved = ExpressionEvaluator.resolveValue(raw, data);
+        return resolved != null ? resolved.toString() : raw;
+    }
+
+    /**
+     * Уніфікований helper: Key-Value list або JSON string → List<KeyValue>.
+     * Резолвить {{$json.*}} у кожному name і value.
      */
     @SuppressWarnings("unchecked")
     public List<KeyValue> resolveKeyValues(
             InputMode mode,
             List<KeyValue> kvList,
-            String jsonString
+            String jsonString,
+            Map<String, Object> inputItem
     ) {
+        List<KeyValue> raw;
+
         if (mode == InputMode.JSON && jsonString != null && !jsonString.isBlank()) {
             try {
                 Map<String, Object> map = objectMapper.readValue(jsonString, Map.class);
-                return map.entrySet().stream()
+                raw = map.entrySet().stream()
                         .map(e -> new KeyValue(e.getKey(), String.valueOf(e.getValue())))
                         .toList();
             } catch (Exception e) {
                 log.warn("Failed to parse JSON key-values: {}", e.getMessage());
+                raw = List.of();
             }
+        } else {
+            raw = kvList != null ? kvList : List.of();
         }
-        return kvList != null ? kvList : List.of();
+
+        return raw.stream()
+                .map(kv -> new KeyValue(
+                        resolveStr(kv.name(), inputItem),
+                        resolveStr(kv.value(), inputItem)
+                ))
+                .toList();
     }
 }

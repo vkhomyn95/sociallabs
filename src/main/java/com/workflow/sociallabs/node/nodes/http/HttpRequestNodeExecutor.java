@@ -61,8 +61,7 @@ public class HttpRequestNodeExecutor extends AbstractNode {
 
         // Process in batches
         for (int i = 0; i < inputItems.size(); i += batchSize) {
-            List<WorkflowItem> batch = inputItems.subList(i,
-                    Math.min(i + batchSize, inputItems.size()));
+            List<WorkflowItem> batch = inputItems.subList(i, Math.min(i + batchSize, inputItems.size()));
 
             for (WorkflowItem item : batch) {
                 try {

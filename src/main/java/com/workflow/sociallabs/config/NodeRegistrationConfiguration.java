@@ -6,6 +6,7 @@ import com.workflow.sociallabs.domain.enums.NodeType;
 import com.workflow.sociallabs.model.NodeDiscriminator;
 import com.workflow.sociallabs.node.core.NodeRegistry;
 import com.workflow.sociallabs.node.nodes.ai.AiAgentNodeExecutor;
+import com.workflow.sociallabs.node.nodes.http.HttpRequestNodeExecutor;
 import com.workflow.sociallabs.node.nodes.logic.IfLogicNodeExecutor;
 import com.workflow.sociallabs.node.nodes.logic.SwitchLogicNodeExecutor;
 import com.workflow.sociallabs.node.nodes.telegram.bot.TelegramBotActionNodeExecutor;
@@ -78,6 +79,15 @@ public class NodeRegistrationConfiguration {
                 NodeCategory.AI,
                 AiAgentNodeExecutor.class,
                 CredentialType.API_KEY
+        );
+
+        // Core actions
+        registry.register(
+                NodeDiscriminator.HTTP_REQUEST,
+                NodeType.ACTION,
+                NodeCategory.CORE,
+                HttpRequestNodeExecutor.class,
+                null
         );
 
         log.info("Registered {} nodes", registry.getAllNodes().size());

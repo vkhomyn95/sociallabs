@@ -3,8 +3,8 @@ package com.workflow.sociallabs.node.nodes.http;
 import com.workflow.sociallabs.node.nodes.http.auth.*;
 import com.workflow.sociallabs.node.nodes.http.parameters.HttpRequestParameters;
 import com.workflow.sociallabs.node.nodes.http.parameters.HttpRequestParameters.*;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -16,17 +16,12 @@ import java.net.URI;
 import java.time.Duration;
 import java.util.*;
 
-/**
- * Основний сервіс для виконання HTTP-запитів.
- * Використовує WebClient (Spring WebFlux) — non-blocking.
- * Підтримує всі методи, авторизацію, тіло, пагінацію.
- */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class HttpRequestService {
 
     private final WebClient webClient;
+    private final WebClient insecureWebClient;
     private final HttpRequestBuilder requestBuilder;
     private final HttpResponseParser responseParser;
     private final PaginationHandler paginationHandler;
@@ -36,15 +31,26 @@ public class HttpRequestService {
             HttpAuthType.BASIC,  new BasicAuthStrategy(),
             HttpAuthType.HEADER, new HeaderAuthStrategy(),
             HttpAuthType.BEARER, new BearerAuthStrategy(),
-            HttpAuthType.QUERY,  new NoAuthStrategy()  // query params handled in URI
+            HttpAuthType.QUERY,  new NoAuthStrategy()
     );
+
+    // Явний конструктор з @Qualifier — єдиний спосіб без @Primary
+    public HttpRequestService(
+            @Qualifier("httpNodeWebClient")       WebClient webClient,
+            @Qualifier("insecureHttpNodeWebClient") WebClient insecureWebClient,
+            HttpRequestBuilder requestBuilder,
+            HttpResponseParser responseParser,
+            PaginationHandler paginationHandler
+    ) {
+        this.webClient        = webClient;
+        this.insecureWebClient = insecureWebClient;
+        this.requestBuilder   = requestBuilder;
+        this.responseParser   = responseParser;
+        this.paginationHandler = paginationHandler;
+    }
 
     // ── Public API ──────────────────────────────────────────────────
 
-    /**
-     * Виконати один HTTP-запит для одного input item.
-     * Якщо пагінація увімкнена — повертає кілька items.
-     */
     public List<Map<String, Object>> execute(
             HttpRequestParameters params,
             Map<String, Object> inputItem
@@ -62,12 +68,6 @@ public class HttpRequestService {
 
     // ── Private ────────────────────────────────────────────────────
 
-    /**
-     * Виконати один запит (одну сторінку).
-     *
-     * @param urlOverride  URL для пагінації (може бути null)
-     * @param paramValue   значення параметра пагінації (може бути null)
-     */
     private List<Map<String, Object>> executeOnePage(
             HttpRequestParameters params,
             Map<String, Object> inputItem,
@@ -75,17 +75,13 @@ public class HttpRequestService {
             Object paramValue
     ) throws Exception {
 
-        // Якщо UPDATE_PARAM пагінація — додати param до URL
         String effectiveUrl = urlOverride;
         if (paramValue != null && params.getPaginationParamName() != null) {
-            // Append/replace param in URL
-            String base = params.getUrl();
-            effectiveUrl = appendOrReplaceParam(base,
-                    params.getPaginationParamName(),
-                    paramValue.toString());
+            effectiveUrl = appendOrReplaceParam(
+                    params.getUrl(), params.getPaginationParamName(), paramValue.toString());
         }
 
-        URI uri = requestBuilder.buildUri(params, effectiveUrl);
+        URI uri        = requestBuilder.buildUri(params, effectiveUrl, inputItem);
         HttpMethod method = requestBuilder.resolveMethod(params);
 
         log.debug("HTTP {} {}", method, uri);
@@ -93,7 +89,6 @@ public class HttpRequestService {
         ResponseEntity<byte[]> response = doRequest(method, uri, params, inputItem);
         Map<String, Object> parsed = responseParser.parse(response, params);
 
-        // Якщо тіло — список, розгортаємо
         Object body = parsed.get("body");
         if (body instanceof List<?> list) {
             return list.stream()
@@ -101,7 +96,7 @@ public class HttpRequestService {
                         Map<String, Object> itemMap = new LinkedHashMap<>();
                         if (Boolean.TRUE.equals(params.getIncludeResponseMetadata())) {
                             itemMap.put("statusCode", parsed.get("statusCode"));
-                            itemMap.put("headers", parsed.get("headers"));
+                            itemMap.put("headers",    parsed.get("headers"));
                         }
                         itemMap.put("body", item);
                         return itemMap;
@@ -112,81 +107,64 @@ public class HttpRequestService {
         return List.of(parsed);
     }
 
-    /**
-     * Виконати фактичний WebClient запит.
-     */
     private ResponseEntity<byte[]> doRequest(
             HttpMethod method,
             URI uri,
             HttpRequestParameters params,
             Map<String, Object> inputItem
     ) {
+        WebClient client = Boolean.TRUE.equals(params.getIgnoreSslIssues())
+                ? insecureWebClient
+                : webClient;
+
         boolean hasBody = Boolean.TRUE.equals(params.getSendBody())
                 && method != HttpMethod.GET
                 && method != HttpMethod.HEAD
                 && method != HttpMethod.DELETE;
 
+        int timeoutMs = params.getTimeout() != null ? params.getTimeout() : 30_000;
+
         try {
             WebClient.RequestHeadersSpec<?> spec;
 
             if (hasBody) {
-                WebClient.RequestBodySpec bodySpec = webClient
-                        .method(method)
-                        .uri(uri);
-
-                // Apply headers before body
-                spec = requestBuilder.applyHeaders(bodySpec, params);
-                // Body — must cast back to RequestBodySpec
+                WebClient.RequestBodySpec bodySpec = client.method(method).uri(uri);
+                spec = requestBuilder.applyHeaders(bodySpec, params, inputItem);
                 spec = requestBuilder.applyBody((WebClient.RequestBodySpec) spec, params, inputItem);
             } else {
-                spec = webClient.method(method).uri(uri);
-                spec = requestBuilder.applyHeaders(spec, params);
+                spec = client.method(method).uri(uri);
+                spec = requestBuilder.applyHeaders(spec, params, inputItem);
             }
 
-            // Apply auth
-            HttpAuthStrategy authStrategy = AUTH_STRATEGIES.getOrDefault(
-                    params.getAuthType(), new NoAuthStrategy());
-            spec = authStrategy.apply(spec, params);
-
-            // Execute + retrieve
-            int timeoutMs = params.getTimeout() != null ? params.getTimeout() : 30_000;
-
-            Mono<ResponseEntity<byte[]>> responseMono = spec
-                    .retrieve()
-                    .onStatus(
-                            status -> !status.is2xxSuccessful()
-                                    && !Boolean.TRUE.equals(params.getNeverError()),
-                            clientResponse -> clientResponse.bodyToMono(String.class)
-                                    .flatMap(body -> Mono.error(
-                                            new WebClientResponseException(
-                                                    clientResponse.statusCode().value(),
-                                                    "HTTP Error " + clientResponse.statusCode().value(),
-                                                    clientResponse.headers().asHttpHeaders(),
-                                                    body.getBytes(),
-                                                    null
-                                            )
-                                    ))
-                    )
-                    .toEntity(byte[].class);
+            spec = AUTH_STRATEGIES
+                    .getOrDefault(params.getAuthType(), new NoAuthStrategy())
+                    .apply(spec, params);
 
             if (Boolean.TRUE.equals(params.getNeverError())) {
-                // Never error: catch 4xx/5xx and return as-is
-                responseMono = webClient.method(method).uri(uri)
-                        .exchangeToMono(response ->
-                                response.toEntity(byte[].class));
+                return spec.exchangeToMono(r -> r.toEntity(byte[].class))
+                        .timeout(Duration.ofMillis(timeoutMs))
+                        .block();
             }
 
-            return responseMono
+            return spec.retrieve()
+                    .onStatus(
+                            status -> !status.is2xxSuccessful(),
+                            cr -> cr.bodyToMono(String.class).flatMap(errBody ->
+                                    Mono.error(new WebClientResponseException(
+                                            cr.statusCode().value(),
+                                            "HTTP Error " + cr.statusCode().value(),
+                                            cr.headers().asHttpHeaders(),
+                                            errBody.getBytes(), null)))
+                    )
+                    .toEntity(byte[].class)
                     .timeout(Duration.ofMillis(timeoutMs))
                     .block();
 
         } catch (WebClientResponseException e) {
-            log.warn("HTTP {} {} → {} {}", method, uri, e.getStatusCode(), e.getMessage());
+            log.warn("HTTP {} {} → {}", method, uri, e.getStatusCode());
             throw e;
         }
     }
-
-    // ── Helpers ────────────────────────────────────────────────────
 
     private String appendOrReplaceParam(String url, String paramName, String value) {
         if (url.contains(paramName + "=")) {
